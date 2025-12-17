@@ -104,52 +104,54 @@ export default function Login() {
                                 Digite seu email e senha abaixo
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="email">Email</Label>
-                                <div className="relative">
-                                    <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                                    <Input
-                                        id="email"
-                                        placeholder="nome@exemplo.com"
-                                        type="email"
-                                        className="pl-10"
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                    />
+                        <form onSubmit={handleLogin}>
+                            <CardContent className="space-y-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="email">Email</Label>
+                                    <div className="relative">
+                                        <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                                        <Input
+                                            id="email"
+                                            placeholder="nome@exemplo.com"
+                                            type="email"
+                                            className="pl-10"
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
+                                        />
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                    <Label htmlFor="password">Senha</Label>
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <Label htmlFor="password">Senha</Label>
+                                    </div>
+                                    <div className="relative">
+                                        <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                                        <Input
+                                            id="password"
+                                            type="password"
+                                            className="pl-10"
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                        />
+                                    </div>
                                 </div>
-                                <div className="relative">
-                                    <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                                    <Input
-                                        id="password"
-                                        type="password"
-                                        className="pl-10"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                    />
+                                <div className="flex items-center space-x-2">
+                                    <Checkbox id="remember" />
+                                    <Label htmlFor="remember" className="text-sm font-normal text-gray-500">
+                                        Lembrar de mim por 30 dias
+                                    </Label>
                                 </div>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <Checkbox id="remember" />
-                                <Label htmlFor="remember" className="text-sm font-normal text-gray-500">
-                                    Lembrar de mim por 30 dias
-                                </Label>
-                            </div>
-                        </CardContent>
-                        <CardFooter>
-                            <Button
-                                onClick={handleLogin}
-                                className="w-full text-white h-11"
-                            >
-                                Entrar
-                                <ArrowRight className="ml-2 h-4 w-4" />
-                            </Button>
-                        </CardFooter>
+                            </CardContent>
+                            <CardFooter>
+                                <Button
+                                    type="submit"
+                                    className="w-full text-white h-11"
+                                >
+                                    Entrar
+                                    <ArrowRight className="ml-2 h-4 w-4" />
+                                </Button>
+                            </CardFooter>
+                        </form>
                     </Card>
                 </div>
             </div>
