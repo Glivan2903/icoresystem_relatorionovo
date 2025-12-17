@@ -241,6 +241,9 @@ export default function ResaleReport() {
                         </Table>
                     </div>
                 </CardContent>
+                <div className="mt-4 text-right font-bold print:mr-4">
+                    Total de itens: {calculatedProducts.length}
+                </div>
             </Card>
 
             {/* Column Configuration Dialog */}

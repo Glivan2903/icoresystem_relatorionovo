@@ -113,6 +113,9 @@ export default function QuotesReport() {
                             </TableBody>
                         </Table>
                     </div>
+                    <div className="mt-4 text-right font-bold">
+                        Total de itens: {quotes.length}
+                    </div>
                 </CardContent>
             </Card>
         </div>

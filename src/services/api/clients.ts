@@ -54,6 +54,7 @@ export const clientsService = {
         return response.data;
     },
 
+
     getById: async (id: string) => {
         const response = await api.get<{ data: ClientDetail | ClientDetail[] }>(`/clientes/${id}`);
         const data = response.data.data;
@@ -61,6 +62,11 @@ export const clientsService = {
             return data[0];
         }
         return data;
+    },
+
+    create: async (data: Partial<Client>) => {
+        const response = await api.post('/clientes', data);
+        return response.data;
     },
 
     update: async (id: string, data: Partial<ClientDetail>) => {

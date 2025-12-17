@@ -286,6 +286,9 @@ export default function SalesReport() {
                         </TableBody>
                     </Table>
                 </CardContent>
+                <div className="mt-4 text-right font-bold print:mr-4">
+                    Total de itens: {filteredSales.length}
+                </div>
             </Card>
 
             {/* Column Configuration Dialog */}

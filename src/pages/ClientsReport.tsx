@@ -225,6 +225,9 @@ export function ClientsReport() {
                         </TableBody>
                     </Table>
                 </CardContent>
+                <div className="mt-4 text-right font-bold print:mr-4">
+                    Total de itens: {filteredClients.length}
+                </div>
             </Card>
 
             {/* Column Configuration Dialog */}

@@ -18,6 +18,7 @@ export function Sidebar() {
         { icon: ShoppingBag, label: 'Produtos', path: '/produtos' },
         { icon: TrendingUp, label: 'Vendas', path: '/vendas' },
         { icon: Calculator, label: 'Orçamentos', path: '/revenda' },
+        { icon: Users, label: 'Orçamentos/Clientes', path: '/orcamentos-clientes' },
     ];
 
     return (

@@ -18,6 +18,12 @@ export function ProductsReport() {
         grupo: ''
     });
 
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+    const [itemsPerPage, setItemsPerPage] = useState(100);
+
     // Column Selection State
     const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
     const [availableColumns, setAvailableColumns] = useState([
@@ -34,14 +40,19 @@ export function ProductsReport() {
     const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
     const [showVerificationColumn, setShowVerificationColumn] = useState(false);
 
-    const fetchProducts = async () => {
+    const fetchProducts = async (page = 1) => {
         setLoading(true);
         try {
-            const response = await productService.getAll(1, 1000);
+            const response = await productService.getAll(page, itemsPerPage);
             setProducts(response.data || []);
 
+            if (response.meta) {
+                setTotalPages(response.meta.total_paginas);
+                setTotalItems(response.meta.total_registros);
+            }
+
             if ((response.data || []).length === 0) {
-                toast.info('Nenhum produto encontrado.');
+                toast.info('Nenhum produto encontrado nesta página.');
             }
         } catch (error) {
             console.error(error);
@@ -52,8 +63,8 @@ export function ProductsReport() {
     };
 
     useEffect(() => {
-        fetchProducts();
-    }, []);
+        fetchProducts(currentPage);
+    }, [currentPage]);
 
     // Extract unique categories for the filter dropdown
     const categories = useMemo(() => {
@@ -179,7 +190,7 @@ export function ProductsReport() {
                             </SelectContent>
                         </UISelect>
                     </div>
-                    <Button onClick={fetchProducts} disabled={loading}>
+                    <Button onClick={() => fetchProducts(currentPage)} disabled={loading}>
                         {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
                         Atualizar Lista
                     </Button>
@@ -229,6 +240,32 @@ export function ProductsReport() {
                         </TableBody>
                     </Table>
                 </CardContent>
+                <div className="flex items-center justify-between p-4 border-t no-print">
+                    <div className="text-sm text-gray-500">
+                        Página {currentPage} de {totalPages} (Total: {totalItems} itens)
+                    </div>
+                    <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                            disabled={currentPage === 1 || loading}
+                        >
+                            Anterior
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                            disabled={currentPage === totalPages || loading}
+                        >
+                            Próximo
+                        </Button>
+                    </div>
+                </div>
+                <div className="mt-4 text-right font-bold print:mr-4 print:block hidden">
+                    Total de itens: {totalItems}
+                </div>
             </Card>
 
             {/* Column Configuration Dialog */}

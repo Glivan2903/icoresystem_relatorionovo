@@ -13,6 +13,7 @@ import ProductsReport from '@/pages/ProductsReport';
 import ResaleReport from '@/pages/ResaleReport';
 import SalesReport from '@/pages/SalesReport';
 import QuotesReport from '@/pages/QuotesReport';
+import QuotesClient from '@/pages/QuotesClient';
 
 // Placeholder Pages
 const Settings = () => <div className="p-4">Settings Page</div>;
@@ -34,6 +35,7 @@ function App() {
             <Route path="/clientes" element={<ClientsReport />} />
             <Route path="/produtos" element={<ProductsReport />} />
             <Route path="/orcamentos" element={<QuotesReport />} />
+            <Route path="/orcamentos-clientes" element={<QuotesClient />} />
             <Route path="/vendas" element={<SalesReport />} /> {/* Added route for /vendas */}
             <Route path="/revenda" element={<ResaleReport />} />
             <Route path="/precos" element={<PriceUpdates />} />
