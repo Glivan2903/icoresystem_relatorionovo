@@ -8,7 +8,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { productService, type Product, type ProductGroup } from '@/services/api/products';
 import { calculateResalePrice } from '@/lib/pricing';
-import { Loader2, Calculator, Printer, Settings } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Loader2, Calculator, Printer, Settings, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function ResaleReport() {
@@ -17,6 +18,7 @@ export default function ResaleReport() {
     const [loading, setLoading] = useState(true);
     const [markup, setMarkup] = useState<string>('30'); // Default 30%
     const [selectedGroup, setSelectedGroup] = useState<string>('all');
+    const [showZeroStock, setShowZeroStock] = useState(false);
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -32,6 +34,7 @@ export default function ResaleReport() {
         { id: 'valor_custo', label: 'Valor Custo', visible: true },
         { id: 'markup', label: '+ Margem (%)', visible: true },
         { id: 'preco_revenda', label: 'Valor', visible: true },
+        { id: 'estoque', label: 'Estoque', visible: true },
         { id: 'arredondado', label: 'Obs', visible: true }, // Indicator
     ]);
 
@@ -53,16 +56,13 @@ export default function ResaleReport() {
     }, []);
 
     // Refetch when group changes
-    useEffect(() => {
-        setCurrentPage(1);
-        if (currentPage === 1) {
-            fetchProducts(1);
-        }
-        // fetchProducts will be triggered by currentPage change if I conditionally call it, 
-        // but cleaner to just reset page and let the effect on currentPage trigger fetch?
-        // Actually ProductsReport does: fetchProducts(currentPage) in useEffect[currentPage].
-        // So handling group change: setPage(1). 
-    }, [selectedGroup]);
+    // Refetch when group changes - REMOVED for manual trigger
+    // useEffect(() => {
+    //    setCurrentPage(1);
+    //    if (currentPage === 1) {
+    //        fetchProducts(1);
+    //    }
+    // }, [selectedGroup]);
 
     useEffect(() => {
         fetchProducts(currentPage);
@@ -98,8 +98,12 @@ export default function ResaleReport() {
 
     // Filter and Calculate
     const calculatedProducts = useMemo(() => {
-        // Filter is now server-side
+        // Filter is now server-side, but we can filter zero stock client-side for now
         let filtered = products;
+
+        if (!showZeroStock) {
+            filtered = filtered.filter(p => p.estoque > 0);
+        }
 
         return filtered.map(p => {
             const basePrice = parseFloat(p.valor_custo);
@@ -142,12 +146,23 @@ export default function ResaleReport() {
                 <style type="text/css" media="print">
                     {`
                         @page { 
-                            size: landscape; 
+                            size: portrait; 
                             margin: 10mm;
+                        }
+                        @media print {
+                            body {
+                                -webkit-print-color-adjust: exact;
+                            }
+                            table {
+                                font-size: 10px;
+                            }
+                            td, th {
+                                padding: 4px !important;
+                            }
                         }
                     `}
                 </style>
-                <div className="text-center font-bold text-2xl mb-4">AYLA DIGITAL</div>
+                <div className="text-center font-bold text-xl mb-2">AYLA DIGITAL</div>
                 <div className="flex justify-between text-sm mb-4 border-b pb-4">
                     <div className="text-left space-y-1">
                         <p>CNPJ: 58.499.151/0001-16</p>
@@ -160,7 +175,7 @@ export default function ResaleReport() {
                         <p>CEP: 63200-000</p>
                     </div>
                 </div>
-                <div className="text-center font-bold text-xl uppercase mb-2">Orçamentos</div>
+                <div className="text-center font-bold text-lg uppercase mb-2">Orçamentos</div>
 
                 {/* Print Context Info */}
                 <div className="mb-4 p-2 border rounded bg-gray-50 text-sm flex justify-center gap-6">
@@ -208,10 +223,20 @@ export default function ResaleReport() {
                                 <Calculator className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                                 <Input
                                     type="number"
-                                    value={markup}
-                                    onChange={(e) => setMarkup(e.target.value)}
                                     className="pl-8"
                                 />
+                            </div>
+                        </div>
+                        <div className="w-full md:w-auto pb-0.5">
+                            <Button onClick={() => { setCurrentPage(1); fetchProducts(1); }} className="w-full md:w-auto">
+                                <RefreshCw className="h-4 w-4 mr-2" />
+                                Carregar
+                            </Button>
+                        </div>
+                        <div className="w-full md:w-1/4 space-y-2 flex items-center gap-2 pb-2">
+                            <div className="flex items-center space-x-2">
+                                <Switch id="zero-stock" checked={showZeroStock} onCheckedChange={setShowZeroStock} />
+                                <label htmlFor="zero-stock" className="text-sm font-medium">Exibir estoque zero</label>
                             </div>
                         </div>
                     </div>
@@ -229,6 +254,7 @@ export default function ResaleReport() {
                                     {isColVisible('valor_custo') && <TableHead className="text-black font-bold">Valor Custo</TableHead>}
                                     {isColVisible('markup') && <TableHead className="text-black font-bold">+ Margem (%)</TableHead>}
                                     {isColVisible('preco_revenda') && <TableHead className="text-black font-bold text-green-700">Valor</TableHead>}
+                                    {isColVisible('estoque') && <TableHead className="text-black font-bold text-center w-[80px]">Estoque</TableHead>}
                                     {isColVisible('arredondado') && <TableHead className="text-xs text-muted-foreground text-right w-[100px]">Arredondado</TableHead>}
                                     {showVerificationColumn && (
                                         <TableHead className="text-black font-bold w-[100px] text-center print:table-cell hidden">Conferência</TableHead>
@@ -250,6 +276,11 @@ export default function ResaleReport() {
                                             {isColVisible('preco_revenda') && (
                                                 <TableCell className="font-bold text-lg text-green-700">
                                                     {product.preco_revenda.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                </TableCell>
+                                            )}
+                                            {isColVisible('estoque') && (
+                                                <TableCell className={`text-center font-medium ${product.estoque <= 0 ? 'text-red-600' : 'text-gray-700'}`}>
+                                                    {product.estoque}
                                                 </TableCell>
                                             )}
                                             {isColVisible('arredondado') && (

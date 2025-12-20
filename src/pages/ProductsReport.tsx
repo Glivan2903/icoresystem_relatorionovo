@@ -122,12 +122,23 @@ export function ProductsReport() {
                 <style type="text/css" media="print">
                     {`
                         @page { 
-                            size: landscape; 
+                            size: portrait; 
                             margin: 10mm;
+                        }
+                        @media print {
+                            body {
+                                -webkit-print-color-adjust: exact;
+                            }
+                            table {
+                                font-size: 10px;
+                            }
+                            td, th {
+                                padding: 4px !important;
+                            }
                         }
                     `}
                 </style>
-                <div className="text-center font-bold text-2xl mb-4">AYLA DIGITAL</div>
+                <div className="text-center font-bold text-xl mb-2">AYLA DIGITAL</div>
                 <div className="flex justify-between text-sm mb-4 border-b pb-4">
                     <div className="text-left space-y-1">
                         <p>CNPJ: 58.499.151/0001-16</p>
@@ -140,7 +151,7 @@ export function ProductsReport() {
                         <p>CEP: 63200-000</p>
                     </div>
                 </div>
-                <div className="text-center font-bold text-xl uppercase mb-2">Relatório de Produtos</div>
+                <div className="text-center font-bold text-lg uppercase mb-2">Relatório de Produtos</div>
 
                 {/* Print Filters Display */}
                 {(filters.nome || (filters.grupo && filters.grupo !== 'all')) && (
