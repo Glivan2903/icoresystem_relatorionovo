@@ -221,9 +221,10 @@ export default function ResaleReport() {
                             <label className="text-sm font-medium">Porcentagem de Margem (%)</label>
                             <div className="relative">
                                 <Calculator className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    type="number"
-                                    className="pl-8"
+                                type="number"
+                                value={markup}
+                                onChange={(e) => setMarkup(e.target.value)}
+                                className="pl-8"
                                 />
                             </div>
                         </div>
