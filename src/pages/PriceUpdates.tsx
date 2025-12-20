@@ -77,7 +77,7 @@ export default function PriceUpdates() {
 
                         // Apply adjustment
                         const adjustment = currentPrice * (rule.adjustmentPercentage / 100);
-                        newPrice = currentPrice + adjustment;
+                        newPrice = Math.ceil(currentPrice + adjustment);
                         ruleApplied = rule.name;
                         isChanged = true;
                         reason = '';

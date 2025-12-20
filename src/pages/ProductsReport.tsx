@@ -6,12 +6,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select as UISelect, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { productService, type Product } from '@/services/api/products';
+import { productService, type Product, type ProductGroup } from '@/services/api/products';
 import { Loader2, Search, Printer, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function ProductsReport() {
     const [products, setProducts] = useState<Product[]>([]);
+    const [groups, setGroups] = useState<ProductGroup[]>([]);
     const [loading, setLoading] = useState(false);
     const [filters, setFilters] = useState({
         nome: '',
@@ -43,7 +44,7 @@ export function ProductsReport() {
     const fetchProducts = async (page = 1) => {
         setLoading(true);
         try {
-            const response = await productService.getAll(page, itemsPerPage);
+            const response = await productService.getAll(page, itemsPerPage, filters.grupo && filters.grupo !== 'all' ? filters.grupo : undefined);
             setProducts(response.data || []);
 
             if (response.meta) {
@@ -66,24 +67,35 @@ export function ProductsReport() {
         fetchProducts(currentPage);
     }, [currentPage]);
 
-    // Extract unique categories for the filter dropdown
-    const categories = useMemo(() => {
-        const unique = new Set(products.map(p => p.nome_grupo).filter(Boolean));
-        return Array.from(unique).sort();
-    }, [products]);
+    // Fetch groups on mount
+    useEffect(() => {
+        const loadGroups = async () => {
+            try {
+                const data = await productService.getGroups();
+                setGroups(data || []);
+            } catch (error) {
+                console.error("Failed to load groups", error);
+            }
+        };
+        loadGroups();
+    }, []);
 
-    // Apply filters
+    // Extract unique categories for the filter dropdown (Deprecated - now using API groups)
+    // const categories = useMemo(() => {
+    //     const unique = new Set(products.map(p => p.nome_grupo).filter(Boolean));
+    //     return Array.from(unique).sort();
+    // }, [products]);
+
+    // Apply filters (Client-side filtering for name only, group is server-side)
     const filteredProducts = useMemo(() => {
         return products.filter(p => {
             const matchNome = filters.nome
                 ? p.nome.toLowerCase().includes(filters.nome.toLowerCase()) || (p.codigo_interno && p.codigo_interno.includes(filters.nome))
                 : true;
-            const matchGrupo = filters.grupo && filters.grupo !== 'all'
-                ? p.nome_grupo === filters.grupo
-                : true;
-            return matchNome && matchGrupo;
+            // Removed client-side group filter as it's now handled by the API
+            return matchNome;
         });
-    }, [products, filters]);
+    }, [products, filters.nome]);
 
     const toggleColumn = (id: string) => {
         setAvailableColumns(prev => prev.map(col =>
@@ -139,7 +151,7 @@ export function ProductsReport() {
                                 <span>Nome/Código: <strong>{filters.nome}</strong></span>
                             )}
                             {filters.grupo && filters.grupo !== 'all' && (
-                                <span>Categoria: <strong>{filters.grupo}</strong></span>
+                                <span>Categoria: <strong>{groups.find(g => String(g.id) === filters.grupo)?.nome || filters.grupo}</strong></span>
                             )}
                         </div>
                     </div>
@@ -184,8 +196,8 @@ export function ProductsReport() {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all">Todas as categorias</SelectItem>
-                                {categories.map((cat) => (
-                                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                {groups.map((group) => (
+                                    <SelectItem key={group.id} value={String(group.id)}>{group.nome}</SelectItem>
                                 ))}
                             </SelectContent>
                         </UISelect>

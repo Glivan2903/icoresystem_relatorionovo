@@ -23,12 +23,28 @@ export interface ProductResponse {
     data: Product[];
 }
 
+export interface ProductGroup {
+    id: number;
+    nome: string;
+}
+
 export const productService = {
-    getAll: async (page = 1, limit = 100) => {
+    getAll: async (page = 1, limit = 100, grupo_id?: string) => {
+        const params: any = { pagina: page, limite: limit };
+        if (grupo_id && grupo_id !== 'all') {
+            params.grupo_id = grupo_id;
+        }
+
         const response = await api.get<ProductResponse>('/produtos', {
-            params: { pagina: page, limite: limit }
+            params
         });
         return response.data;
+    },
+
+    getGroups: async () => {
+        const response = await api.get<any>('/grupos_produtos');
+        // Handle cases where API might return { data: [...] } or just [...]
+        return Array.isArray(response.data) ? response.data : (response.data.data || []);
     },
 
     getById: async (id: string) => {

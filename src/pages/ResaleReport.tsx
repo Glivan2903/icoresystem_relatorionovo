@@ -6,23 +6,30 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { productService, type Product } from '@/services/api/products';
+import { productService, type Product, type ProductGroup } from '@/services/api/products';
 import { calculateResalePrice } from '@/lib/pricing';
 import { Loader2, Calculator, Printer, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function ResaleReport() {
     const [products, setProducts] = useState<Product[]>([]);
+    const [groups, setGroups] = useState<ProductGroup[]>([]);
     const [loading, setLoading] = useState(true);
     const [markup, setMarkup] = useState<string>('30'); // Default 30%
     const [selectedGroup, setSelectedGroup] = useState<string>('all');
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+    const [itemsPerPage] = useState(100);
 
     // Column Selection State
     const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
     const [availableColumns, setAvailableColumns] = useState([
         { id: 'codigo_interno', label: 'Código', visible: true },
         { id: 'nome', label: 'Descrição', visible: true },
-        { id: 'valor_venda', label: 'Valor Custo', visible: true },
+        { id: 'valor_custo', label: 'Valor Custo', visible: true },
         { id: 'markup', label: '+ Margem (%)', visible: true },
         { id: 'preco_revenda', label: 'Valor', visible: true },
         { id: 'arredondado', label: 'Obs', visible: true }, // Indicator
@@ -33,14 +40,45 @@ export default function ResaleReport() {
     const [showVerificationColumn, setShowVerificationColumn] = useState(false);
 
     useEffect(() => {
-        fetchProducts();
+        // Fetch groups
+        const loadGroups = async () => {
+            try {
+                const data = await productService.getGroups();
+                setGroups(data || []);
+            } catch (error) {
+                console.error("Failed to load groups", error);
+            }
+        };
+        loadGroups();
     }, []);
 
-    const fetchProducts = async () => {
+    // Refetch when group changes
+    useEffect(() => {
+        setCurrentPage(1);
+        if (currentPage === 1) {
+            fetchProducts(1);
+        }
+        // fetchProducts will be triggered by currentPage change if I conditionally call it, 
+        // but cleaner to just reset page and let the effect on currentPage trigger fetch?
+        // Actually ProductsReport does: fetchProducts(currentPage) in useEffect[currentPage].
+        // So handling group change: setPage(1). 
+    }, [selectedGroup]);
+
+    useEffect(() => {
+        fetchProducts(currentPage);
+    }, [currentPage]);
+
+    const fetchProducts = async (page = 1) => {
         setLoading(true);
         try {
-            const response = await productService.getAll(1, 1000); // Fetch larger batch for client-side filtering/calc
+            const grupoId = selectedGroup !== 'all' ? selectedGroup : undefined;
+            const response = await productService.getAll(page, itemsPerPage, grupoId);
             setProducts(response.data || []);
+
+            if (response.meta) {
+                setTotalPages(response.meta.total_paginas);
+                setTotalItems(response.meta.total_registros);
+            }
             if ((response.data || []).length === 0) {
                 toast.info('Nenhum produto encontrado.');
             }
@@ -52,21 +90,19 @@ export default function ResaleReport() {
         }
     };
 
-    // Extract unique groups
-    const groups = useMemo(() => {
-        const unique = new Set(products.map(p => p.nome_grupo).filter(Boolean));
-        return Array.from(unique).sort();
-    }, [products]);
+    // Extract unique groups - Deprecated, using API
+    // const groups = useMemo(() => {
+    //     const unique = new Set(products.map(p => p.nome_grupo).filter(Boolean));
+    //     return Array.from(unique).sort();
+    // }, [products]);
 
     // Filter and Calculate
     const calculatedProducts = useMemo(() => {
+        // Filter is now server-side
         let filtered = products;
-        if (selectedGroup !== 'all') {
-            filtered = products.filter(p => p.nome_grupo === selectedGroup);
-        }
 
         return filtered.map(p => {
-            const basePrice = parseFloat(p.valor_venda);
+            const basePrice = parseFloat(p.valor_custo);
             const percentage = parseFloat(markup) || 0;
             const finalPrice = calculateResalePrice(basePrice, percentage);
 
@@ -76,7 +112,7 @@ export default function ResaleReport() {
                 preco_revenda: finalPrice
             };
         });
-    }, [products, selectedGroup, markup]);
+    }, [products, markup]);
 
     const toggleColumn = (id: string) => {
         setAvailableColumns(prev => prev.map(col =>
@@ -128,8 +164,7 @@ export default function ResaleReport() {
 
                 {/* Print Context Info */}
                 <div className="mb-4 p-2 border rounded bg-gray-50 text-sm flex justify-center gap-6">
-                    <span>Categoria: <strong>{selectedGroup === 'all' ? 'Todas' : selectedGroup}</strong></span>
-                    <span>Margem Aplicada: <strong>{markup}%</strong></span>
+                    <span>Categoria: <strong>{selectedGroup === 'all' ? 'Todas' : (groups.find(g => String(g.id) === selectedGroup)?.nome || selectedGroup)}</strong></span>
                 </div>
             </div>
 
@@ -162,7 +197,7 @@ export default function ResaleReport() {
                                 <SelectContent>
                                     <SelectItem value="all">Todas</SelectItem>
                                     {groups.map(g => (
-                                        <SelectItem key={g} value={g}>{g}</SelectItem>
+                                        <SelectItem key={g.id} value={String(g.id)}>{g.nome}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
@@ -191,7 +226,7 @@ export default function ResaleReport() {
                                 <TableRow>
                                     {isColVisible('codigo_interno') && <TableHead className="text-black font-bold">Código</TableHead>}
                                     {isColVisible('nome') && <TableHead className="text-black font-bold">Descrição</TableHead>}
-                                    {isColVisible('valor_venda') && <TableHead className="text-black font-bold">Valor Custo</TableHead>}
+                                    {isColVisible('valor_custo') && <TableHead className="text-black font-bold">Valor Custo</TableHead>}
                                     {isColVisible('markup') && <TableHead className="text-black font-bold">+ Margem (%)</TableHead>}
                                     {isColVisible('preco_revenda') && <TableHead className="text-black font-bold text-green-700">Valor</TableHead>}
                                     {isColVisible('arredondado') && <TableHead className="text-xs text-muted-foreground text-right w-[100px]">Arredondado</TableHead>}
@@ -210,7 +245,7 @@ export default function ResaleReport() {
                                         <TableRow key={product.id} className="break-inside-avoid">
                                             {isColVisible('codigo_interno') && <TableCell>{product.codigo_interno}</TableCell>}
                                             {isColVisible('nome') && <TableCell className="font-medium">{product.nome}</TableCell>}
-                                            {isColVisible('valor_venda') && <TableCell>{parseFloat(product.valor_venda).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>}
+                                            {isColVisible('valor_custo') && <TableCell>{parseFloat(product.valor_custo).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</TableCell>}
                                             {isColVisible('markup') && <TableCell>{markup}%</TableCell>}
                                             {isColVisible('preco_revenda') && (
                                                 <TableCell className="font-bold text-lg text-green-700">
@@ -242,7 +277,33 @@ export default function ResaleReport() {
                     </div>
                 </CardContent>
                 <div className="mt-4 text-right font-bold print:mr-4">
-                    Total de itens: {calculatedProducts.length}
+                    Total de itens: {totalItems}
+                </div>
+            </Card>
+
+            <Card className="no-print mt-4">
+                <div className="flex items-center justify-between p-4">
+                    <div className="text-sm text-gray-500">
+                        Página {currentPage} de {totalPages} (Total: {totalItems} itens)
+                    </div>
+                    <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                            disabled={currentPage === 1 || loading}
+                        >
+                            Anterior
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                            disabled={currentPage === totalPages || loading}
+                        >
+                            Próximo
+                        </Button>
+                    </div>
                 </div>
             </Card>
 

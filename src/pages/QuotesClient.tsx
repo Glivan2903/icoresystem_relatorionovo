@@ -87,7 +87,7 @@ export default function QuotesClient() {
         // Let's implement as: Price = UnitPrice + (UnitPrice * Percentage / 100)
         // If user enters negative, it's discount.
 
-        const adjustedPrice = unitCost + (unitCost * percentage / 100);
+        const adjustedPrice = Math.ceil(unitCost + (unitCost * percentage / 100));
         const total = adjustedPrice * quantity;
 
         const newItem: QuoteItem = {
