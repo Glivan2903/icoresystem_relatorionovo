@@ -197,11 +197,10 @@ export default function ResaleReport() {
                 </div>
 
                 {/* Print Context Info */}
-                {(filters.nome || (filters.grupo && filters.grupo !== 'all') || !filters.somenteComEstoque) && (
+                {(filters.nome || (filters.grupo && filters.grupo !== 'all')) && (
                     <div className="mb-6 p-3 border border-gray-200 rounded-lg bg-gray-50 text-xs flex flex-wrap justify-center gap-x-6 gap-y-2">
                         {filters.nome && <span>Busca: <strong>{filters.nome}</strong></span>}
                         {filters.grupo && filters.grupo !== 'all' && <span>Categoria: <strong>{groups.find(g => String(g.id) === filters.grupo)?.nome || filters.grupo}</strong></span>}
-                        <span>Estoque: <strong>{!filters.somenteComEstoque ? 'Somente com estoque (>0)' : 'Todos os produtos'}</strong></span>
                     </div>
                 )}
             </div>
