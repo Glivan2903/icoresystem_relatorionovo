@@ -100,8 +100,8 @@ export default function ResaleReport() {
     const calculateResalePrice = (basePrice: number, percentage: number) => {
         if (isNaN(basePrice) || isNaN(percentage)) return 0;
         const priceWithMarkup = basePrice + (basePrice * (percentage / 100));
-        // Round up to nearest 0.05
-        return Math.ceil(priceWithMarkup * 20) / 20;
+        // Round up to the nearest whole number (Real)
+        return Math.ceil(priceWithMarkup);
     };
 
     const filteredAndCalculatedProducts = useMemo(() => {
