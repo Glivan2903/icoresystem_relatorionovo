@@ -11,6 +11,7 @@ import { Loader2, Search, Printer, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function ProductsReport() {
+    // State
     const [products, setProducts] = useState<Product[]>([]);
     const [groups, setGroups] = useState<ProductGroup[]>([]);
     const [loading, setLoading] = useState(false);
@@ -18,12 +19,6 @@ export function ProductsReport() {
         nome: '',
         grupo: ''
     });
-
-    // Pagination State
-    const [currentPage, setCurrentPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    const [totalItems, setTotalItems] = useState(0);
-    const [itemsPerPage] = useState(100);
 
     // Column Selection State
     const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
@@ -41,20 +36,32 @@ export function ProductsReport() {
     const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
     const [showVerificationColumn, setShowVerificationColumn] = useState(false);
 
-    const fetchProducts = async (page = 1) => {
+    const fetchAllProducts = async () => {
         setLoading(true);
         try {
-            const response = await productService.getAll(page, itemsPerPage, filters.grupo && filters.grupo !== 'all' ? filters.grupo : undefined);
-            setProducts(response.data || []);
+            const toastId = toast.loading('Carregando produtos...');
+            // Page 1
+            const response = await productService.getAll(1, 100, filters.grupo && filters.grupo !== 'all' ? filters.grupo : undefined);
+            let allData = response.data || [];
 
-            if (response.meta) {
-                setTotalPages(response.meta.total_paginas);
-                setTotalItems(response.meta.total_registros);
+            if (response.meta && response.meta.total_paginas > 1) {
+                const totalPages = response.meta.total_paginas;
+                for (let p = 2; p <= totalPages; p++) {
+                    toast.loading(`Carregando página ${p} de ${totalPages}...`, { id: toastId });
+                    await new Promise(r => setTimeout(r, 250)); // Throttling 
+                    const nextRes = await productService.getAll(p, 100, filters.grupo && filters.grupo !== 'all' ? filters.grupo : undefined);
+                    if (nextRes.data) {
+                        allData = [...allData, ...nextRes.data];
+                    }
+                }
             }
 
-            if ((response.data || []).length === 0) {
-                toast.info('Nenhum produto encontrado nesta página.');
+            setProducts(allData);
+
+            if (allData.length === 0) {
+                toast.info('Nenhum produto encontrado.');
             }
+            toast.dismiss(toastId);
         } catch (error) {
             console.error(error);
             toast.error('Erro ao buscar produtos.');
@@ -64,8 +71,11 @@ export function ProductsReport() {
     };
 
     useEffect(() => {
-        fetchProducts(currentPage);
-    }, [currentPage]);
+        // Initial fetch or when filter changes? 
+        // Better to explicitly search on button click for heavy loads, but "useEffect" on mount is standard.
+        // Assuming user wants load on start.
+        fetchAllProducts();
+    }, []); // Only on mount. User clicks "Atualizar Lista" to refresh with filters.
 
     // Fetch groups on mount
     useEffect(() => {
@@ -86,7 +96,7 @@ export function ProductsReport() {
     //     return Array.from(unique).sort();
     // }, [products]);
 
-    // Apply filters (Client-side filtering for name only, group is server-side)
+    // Apply filters (Client-side filtering for name only, group is used in fetch)
     const filteredProducts = useMemo(() => {
         return products.filter(p => {
             const matchNome = filters.nome
@@ -109,7 +119,6 @@ export function ProductsReport() {
 
     const confirmPrint = () => {
         setIsPrintDialogOpen(false);
-        // Wait for state update and dialog close before printing
         setTimeout(() => {
             window.print();
         }, 500);
@@ -213,7 +222,7 @@ export function ProductsReport() {
                             </SelectContent>
                         </UISelect>
                     </div>
-                    <Button onClick={() => fetchProducts(currentPage)} disabled={loading}>
+                    <Button onClick={fetchAllProducts} disabled={loading}>
                         {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
                         Atualizar Lista
                     </Button>
@@ -263,31 +272,8 @@ export function ProductsReport() {
                         </TableBody>
                     </Table>
                 </CardContent>
-                <div className="flex items-center justify-between p-4 border-t no-print">
-                    <div className="text-sm text-gray-500">
-                        Página {currentPage} de {totalPages} (Total: {totalItems} itens)
-                    </div>
-                    <div className="flex gap-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                            disabled={currentPage === 1 || loading}
-                        >
-                            Anterior
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                            disabled={currentPage === totalPages || loading}
-                        >
-                            Próximo
-                        </Button>
-                    </div>
-                </div>
                 <div className="mt-4 text-right font-bold print:mr-4 print:block hidden">
-                    Total de itens: {totalItems}
+                    Total de itens: {filteredProducts.length}
                 </div>
             </Card>
 

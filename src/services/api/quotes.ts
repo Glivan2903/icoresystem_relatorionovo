@@ -30,8 +30,8 @@ export interface QuotesResponse {
 }
 
 export const quotesService = {
-    getAll: async (startDate?: string, endDate?: string, page = 1) => {
-        const params: any = { pagina: page, limit: 100 };
+    getAll: async (startDate?: string, endDate?: string, page = 1, limit = 100) => {
+        const params: any = { pagina: page, limit: limit };
         if (startDate) params.data_inicio = startDate;
         if (endDate) params.data_fim = endDate;
 

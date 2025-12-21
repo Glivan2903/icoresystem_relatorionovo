@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,14 +12,18 @@ import { Select as UISelect, SelectContent, SelectItem, SelectTrigger, SelectVal
 import { toast } from 'sonner';
 
 export default function SalesReport() {
+    // State
     const [sales, setSales] = useState<Sale[]>([]);
     const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
     const [loading, setLoading] = useState(false);
+
+    // Filters
     const [filters, setFilters] = useState({
-        clientName: '',
         startDate: '',
         endDate: '',
-        paymentMethod: ''
+        clientName: '',
+        paymentMethod: 'all',
+        paymentMethodName: ''
     });
 
     // Column Selection State
@@ -40,41 +44,86 @@ export default function SalesReport() {
     const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
-    const fetchSales = async () => {
+    // Initial fetch
+    useEffect(() => {
+        fetchAllSales();
+        fetchPaymentMethods();
+    }, []);
+
+    const fetchPaymentMethods = async () => {
+        try {
+            const data = await paymentMethodsService.getAll();
+            setPaymentMethods(data || []);
+        } catch (error) {
+            console.error("Failed to load payment methods", error);
+        }
+    };
+
+    const fetchAllSales = async () => {
         setLoading(true);
         try {
-            // Passing default undefined for dates if empty strings
+            const toastId = toast.loading('Carregando vendas...');
             const start = filters.startDate || undefined;
             const end = filters.endDate || undefined;
 
-            // Fetching with a limit of 1000 to show a good amount of history
-            const response = await salesService.getAll(start, end, 1, 1000);
-            setSales(response.data || []);
+            // Page 1
+            const response = await salesService.getAll(start, end, 1, 100);
+            let allData = response.data || [];
 
-            if ((response.data || []).length === 0) {
-                toast.info('Nenhuma venda encontrada.');
+            if (response.meta && response.meta.total_paginas > 1) {
+                const totalPages = response.meta.total_paginas;
+                for (let p = 2; p <= totalPages; p++) {
+                    toast.loading(`Carregando página ${p} de ${totalPages}...`, { id: toastId });
+                    await new Promise(r => setTimeout(r, 250));
+                    const nextRes = await salesService.getAll(start, end, p, 100);
+                    if (nextRes.data) {
+                        allData = [...allData, ...nextRes.data];
+                    }
+                }
             }
+
+            setSales(allData);
+            if (allData.length === 0) {
+                // Optional: toast.info('Nenhuma venda encontrada.');
+            }
+            toast.dismiss(toastId);
         } catch (error) {
             console.error(error);
-            toast.error('Erro ao buscar vendas.');
+            toast.error("Erro ao buscar vendas");
         } finally {
             setLoading(false);
         }
     };
 
-    useEffect(() => {
-        const loadPaymentMethods = async () => {
-            try {
-                const data = await paymentMethodsService.getAll();
-                setPaymentMethods(data || []);
-            } catch (error) {
-                console.error('Failed to load payment methods', error);
+    // Client-side filtering
+    const filteredSales = useMemo(() => {
+        return sales.filter(sale => {
+            // Filter by Client Name
+            if (filters.clientName && !sale.nome_cliente.toLowerCase().includes(filters.clientName.toLowerCase())) {
+                return false;
             }
-        };
 
-        loadPaymentMethods();
-        fetchSales();
-    }, []);
+            // Filter by Payment Method ID (if selected from dropdown)
+            if (filters.paymentMethod !== 'all') {
+                // If the sale implementation has forma_pagamento_id, use it. 
+                // Based on previous observation, we might need to match name if ID not available or inconsistent.
+                // Assuming sale has forma_pagamento_id or similar.
+                if (String(sale.forma_pagamento_id) !== String(filters.paymentMethod)) {
+                    return false;
+                }
+            }
+            // Filter by Payment Method Name (Text Input)
+            if (filters.paymentMethodName && !sale.nome_forma_pagamento?.toLowerCase().includes(filters.paymentMethodName.toLowerCase())) {
+                return false;
+            }
+
+            return true;
+        });
+    }, [sales, filters.clientName, filters.paymentMethod, filters.paymentMethodName]);
+
+    // Calculate totals based on filteredSales
+    const totalSales = useMemo(() => filteredSales.length, [filteredSales]);
+    const totalValue = useMemo(() => filteredSales.reduce((acc, sale) => acc + parseFloat(sale.valor_total), 0), [filteredSales]);
 
     const handlePrintClick = () => {
         setIsPrintDialogOpen(true);
@@ -98,26 +147,7 @@ export default function SalesReport() {
         ));
     };
 
-    const filteredSales = sales.filter(sale => {
-        const matchName = filters.clientName
-            ? (sale.nome_cliente && sale.nome_cliente.toLowerCase().includes(filters.clientName.toLowerCase()))
-            : true;
 
-        const matchPayment = filters.paymentMethod && filters.paymentMethod !== 'all'
-            ? (() => {
-                // Find selected payment method object to check against types if needed
-                const selectedMethodObj = paymentMethods.find(pm => pm.nome === filters.paymentMethod);
-                const salePayment = (sale.nome_forma_pagamento || '').toLowerCase();
-                const filterValue = filters.paymentMethod.toLowerCase();
-                const typeValue = selectedMethodObj?.tipo ? selectedMethodObj.tipo.toLowerCase() : '';
-
-                // Match against name OR type (code)
-                return salePayment === filterValue || (typeValue && salePayment === typeValue);
-            })()
-            : true;
-
-        return matchName && matchPayment;
-    });
 
 
     const formatCurrency = (value: string | number) => {
@@ -227,7 +257,7 @@ export default function SalesReport() {
                         />
                     </div>
                     <div className="space-y-2">
-                        <Button onClick={fetchSales} className="w-full">
+                        <Button onClick={fetchAllSales} className="w-full">
                             Filtrar
                         </Button>
                     </div>
@@ -287,7 +317,7 @@ export default function SalesReport() {
                     </Table>
                 </CardContent>
                 <div className="mt-4 text-right font-bold print:mr-4">
-                    Total de itens: {filteredSales.length}
+                    Total: {totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} ({totalSales} itens)
                 </div>
             </Card>
 

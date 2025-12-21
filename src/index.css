@@ -74,11 +74,20 @@
     }
 
     /* Target Layout containers to allow full content printing */
+    .h-screen,
     div[class*="overflow-hidden"],
+    div[class*="overflow-auto"],
     main[class*="overflow-auto"] {
       height: auto !important;
       overflow: visible !important;
       display: block !important;
+    }
+
+    /* Force hide no-print elements again to override any previous display: block !important */
+    .no-print,
+    nav,
+    aside {
+      display: none !important;
     }
   }
 

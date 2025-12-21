@@ -31,7 +31,6 @@ export function ClientsReport() {
     // Detail Modal State
     const [selectedClient, setSelectedClient] = useState<ClientDetail | null>(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-    const [loadingDetails, setLoadingDetails] = useState(false);
 
     const fetchClients = async () => {
         setLoading(true);
@@ -54,15 +53,42 @@ export function ClientsReport() {
         fetchClients();
     }, []);
 
-    const handlePrint = () => {
-        // Wait briefly for styles to apply if needed, then print
-        setTimeout(() => {
-            window.print();
-        }, 500);
+    const handlePrint = async () => {
+        const toastId = toast.loading('Preparando impressão (buscando registros)...');
+        try {
+            // Fetch first page
+            const response = await clientsService.getAll(1, 100);
+            let allData = response.data || [];
+
+            if (response.meta && response.meta.total_paginas > 1) {
+                const totalPages = response.meta.total_paginas;
+                for (let p = 2; p <= totalPages; p++) {
+                    toast.loading(`Carregando página ${p} de ${totalPages}...`, { id: toastId });
+                    await new Promise(r => setTimeout(r, 350));
+                    const nextRes = await clientsService.getAll(p, 100);
+                    if (nextRes.data) {
+                        allData = [...allData, ...nextRes.data];
+                    }
+                }
+            }
+
+            if (allData.length > 0) {
+                setClients(allData);
+                // Wait for render
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                toast.dismiss(toastId);
+                window.print();
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("Erro ao preparar impressão");
+        } finally {
+            fetchClients();
+        }
     };
 
     const handleViewDetails = async (id: string) => {
-        setLoadingDetails(true);
         setIsDetailModalOpen(true);
         try {
             const clientDetails = await clientsService.getById(id);
@@ -71,8 +97,6 @@ export function ClientsReport() {
             console.error(error);
             toast.error('Erro ao carregar detalhes do cliente.');
             setIsDetailModalOpen(false);
-        } finally {
-            setLoadingDetails(false);
         }
     };
 
@@ -115,7 +139,8 @@ export function ClientsReport() {
                 <style type="text/css" media="print">
                     {`
                         @page { 
-                            size: landscape; 
+                        @page {
+                            size: landscape;
                             margin: 10mm;
                         }
                     `}
@@ -184,7 +209,7 @@ export function ClientsReport() {
 
             <Card className="print-shadow-none border-none shadow-none">
                 <CardHeader className="print-hidden px-0">
-                    <CardTitle>Lista de Clientes</CardTitle>
+                    <CardTitle>Listagem de Clientes</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                     <Table>
@@ -199,22 +224,28 @@ export function ClientsReport() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {filteredClients.map((client) => (
-                                <TableRow key={client.id} className="break-inside-avoid">
-                                    {availableColumns.filter(c => c.visible).map(col => (
-                                        <TableCell key={col.id} className="align-top py-2">
-                                            {col.id === 'telefone'
-                                                ? (client.celular || client.telefone || '-')
-                                                : (client[col.id as keyof Client] || '-')}
-                                        </TableCell>
-                                    ))}
-                                    <TableCell className="text-right no-print align-top">
-                                        <Button variant="ghost" size="icon" onClick={() => handleViewDetails(String(client.id))}>
-                                            <Eye className="h-4 w-4" />
-                                        </Button>
+                            {loading ? (
+                                <TableRow>
+                                    <TableCell colSpan={availableColumns.filter(c => c.visible).length + 1} className="text-center py-8">
+                                        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                                     </TableCell>
                                 </TableRow>
-                            ))}
+                            ) : (
+                                filteredClients.map((client) => (
+                                    <TableRow key={client.id} className="break-inside-avoid">
+                                        {availableColumns.filter(c => c.visible).map(col => (
+                                            <TableCell key={col.id} className="align-top py-2">
+                                                {(client as any)[col.id] || '-'}
+                                            </TableCell>
+                                        ))}
+                                        <TableCell className="text-right no-print align-top">
+                                            <Button variant="ghost" size="icon" onClick={() => handleViewDetails(String(client.id))}>
+                                                <Eye className="h-4 w-4" />
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
                             {filteredClients.length === 0 && !loading && (
                                 <TableRow>
                                     <TableCell colSpan={availableColumns.filter(c => c.visible).length + 1} className="text-center py-8 text-muted-foreground">
@@ -225,8 +256,8 @@ export function ClientsReport() {
                         </TableBody>
                     </Table>
                 </CardContent>
-                <div className="mt-4 text-right font-bold print:mr-4">
-                    Total de itens: {filteredClients.length}
+                <div className="mt-4 text-right font-bold print:mr-4 print:block hidden">
+                    Total de clientes: {filteredClients.length}
                 </div>
             </Card>
 
@@ -269,9 +300,7 @@ export function ClientsReport() {
                         <DialogTitle>Detalhes do Cliente</DialogTitle>
                         <DialogDescription>Informações completas do cadastro.</DialogDescription>
                     </DialogHeader>
-                    {loadingDetails ? (
-                        <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
-                    ) : selectedClient ? (
+                    {selectedClient ? (
                         <div className="space-y-6">
                             <div className="grid grid-cols-2 gap-4">
                                 <div><span className="font-bold">ID:</span> {selectedClient.id}</div>
@@ -282,10 +311,14 @@ export function ClientsReport() {
                                 <div><span className="font-bold">Telefone:</span> {selectedClient.telefone || '-'}</div>
                             </div>
 
-                            <div className="border-t pt-4">
-                                <h3 className="font-semibold mb-2">Endereço</h3>
-                                <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded">{getAddressString(selectedClient)}</p>
-                            </div>
+                            {selectedClient.enderecos && selectedClient.enderecos.length > 0 && (
+                                <div className="border-t pt-4">
+                                    <h3 className="font-semibold mb-2">Endereço</h3>
+                                    <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded">
+                                        {selectedClient.enderecos[0].endereco?.logradouro}, {selectedClient.enderecos[0].endereco?.numero} - {selectedClient.enderecos[0].endereco?.bairro}, {selectedClient.enderecos[0].endereco?.nome_cidade} - {selectedClient.enderecos[0].endereco?.estado}
+                                    </p>
+                                </div>
+                            )}
 
                             {selectedClient.obs && (
                                 <div className="border-t pt-4">
