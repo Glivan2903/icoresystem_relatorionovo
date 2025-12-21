@@ -3,12 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { productService, type Product, type ProductGroup } from '@/services/api/products';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Calculator, Printer, Settings, RefreshCw, Search } from 'lucide-react';
+import { Loader2, Calculator, Printer, Settings, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function ResaleReport() {
@@ -149,8 +149,7 @@ export default function ResaleReport() {
         }, 500);
     };
 
-    // Helper to get column visibility
-    const isColVisible = (id: string) => availableColumns.find(c => c.id === id)?.visible;
+
 
     return (
         <div className="space-y-6">

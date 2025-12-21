@@ -113,24 +113,7 @@ export function ClientsReport() {
         return matchNome && matchCpf && matchEmail;
     });
 
-    // Address helper
-    const getAddressString = (client: ClientDetail) => {
-        if (!client.enderecos || client.enderecos.length === 0) return 'Endereço não cadastrado';
-        const addr = client.enderecos[0]; // Take primary
-        // Handle nested address object structure if wrapped or plain string
-        if (typeof addr === 'string') return addr;
 
-        // Check for common address fields
-        const logradouro = (addr as any).logradouro || (addr as any)?.endereco?.logradouro;
-        const numero = (addr as any).numero || (addr as any)?.endereco?.numero;
-        const bairro = (addr as any).bairro || (addr as any)?.endereco?.bairro;
-        const cidade = (addr as any).nome_cidade || (addr as any)?.endereco?.nome_cidade;
-        const uf = (addr as any).estado || (addr as any)?.endereco?.estado;
-
-        if (!logradouro) return 'Endereço incompleto';
-
-        return `${logradouro}, ${numero || ''} - ${bairro || ''}, ${cidade || ''}/${uf || ''}`;
-    };
 
     return (
         <div className="space-y-6">
