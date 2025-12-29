@@ -29,10 +29,13 @@ export interface ProductGroup {
 }
 
 export const productService = {
-    getAll: async (page = 1, limit = 100, grupo_id?: string) => {
+    getAll: async (page = 1, limit = 100, grupo_id?: string, nome?: string) => {
         const params: any = { pagina: page, limite: limit };
         if (grupo_id && grupo_id !== 'all') {
             params.grupo_id = grupo_id;
+        }
+        if (nome) {
+            params.nome = nome;
         }
 
         const response = await api.get<ProductResponse>('/produtos', {

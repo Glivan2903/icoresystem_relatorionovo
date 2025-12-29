@@ -3,18 +3,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { productService } from '@/services/api/products';
 import { quotesService } from '@/services/api/quotes';
 import { salesService } from '@/services/api/sales';
-import { clientsService } from '@/services/api/clients';
+
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { ShoppingBag, Users, FileText, TrendingUp, Loader2 } from 'lucide-react';
+import { ShoppingBag, FileText, TrendingUp, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Dashboard() {
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({
         products: 0,
-        clients: 0, // We might need a clients service or infer from sales/quotes
         quotes: 0,
         salesCount: 0
     });
@@ -25,18 +24,16 @@ export default function Dashboard() {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [productsRes, quotesRes, salesRes, clientsRes] = await Promise.all([
+                const [productsRes, quotesRes, salesRes] = await Promise.all([
                     productService.getAll(1, 1), // Get total from meta
                     quotesService.getAll(undefined, undefined, 1),
                     // Fetching a large batch of sales to calculate top products client-side
                     // The API allows pagination, using a high limit to get substantial data for stats
-                    salesService.getAll(undefined, undefined, 1, 1000),
-                    clientsService.getAll(1, 1)
+                    salesService.getAll(undefined, undefined, 1, 1000)
                 ]);
 
                 setStats({
                     products: productsRes.meta.total_registros,
-                    clients: clientsRes.meta.total_registros,
                     quotes: quotesRes.meta.total_registros,
                     salesCount: salesRes.meta.total_registros
                 });
@@ -108,7 +105,7 @@ export default function Dashboard() {
         <div className="space-y-6">
             <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Total de Produtos</CardTitle>
@@ -139,16 +136,7 @@ export default function Dashboard() {
                         <p className="text-xs text-muted-foreground">Total de pedidos</p>
                     </CardContent>
                 </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total de Clientes</CardTitle>
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{stats.clients}</div>
-                        <p className="text-xs text-muted-foreground">Cadastrados</p>
-                    </CardContent>
-                </Card>
+
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">

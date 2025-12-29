@@ -13,12 +13,17 @@ import { toast } from 'sonner';
 export function ProductsReport() {
     // State
     const [products, setProducts] = useState<Product[]>([]);
+    const [printProducts, setPrintProducts] = useState<Product[]>([]);
     const [groups, setGroups] = useState<ProductGroup[]>([]);
     const [loading, setLoading] = useState(false);
     const [filters, setFilters] = useState({
         nome: '',
         grupo: ''
     });
+
+    // Pagination State
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
 
     // Column Selection State
     const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
@@ -35,33 +40,43 @@ export function ProductsReport() {
     // Print Configuration State
     const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
     const [showVerificationColumn, setShowVerificationColumn] = useState(false);
+    const [isPreparingPrint, setIsPreparingPrint] = useState(false);
 
-    const fetchAllProducts = async () => {
+    const getCacheKey = (p: number, f: typeof filters) => `products_cache_p${p}_n${f.nome}_g${f.grupo}`;
+
+    const fetchProducts = async (pageToFetch = 1, useCache = true) => {
         setLoading(true);
         try {
-            const toastId = toast.loading('Carregando produtos...');
-            // Page 1
-            const response = await productService.getAll(1, 100, filters.grupo && filters.grupo !== 'all' ? filters.grupo : undefined);
-            let allData = response.data || [];
-
-            if (response.meta && response.meta.total_paginas > 1) {
-                const totalPages = response.meta.total_paginas;
-                for (let p = 2; p <= totalPages; p++) {
-                    toast.loading(`Carregando página ${p} de ${totalPages}...`, { id: toastId });
-                    await new Promise(r => setTimeout(r, 250)); // Throttling 
-                    const nextRes = await productService.getAll(p, 100, filters.grupo && filters.grupo !== 'all' ? filters.grupo : undefined);
-                    if (nextRes.data) {
-                        allData = [...allData, ...nextRes.data];
+            const cacheKey = getCacheKey(pageToFetch, filters);
+            if (useCache) {
+                const cached = localStorage.getItem(cacheKey);
+                if (cached) {
+                    const { data, meta, timestamp } = JSON.parse(cached);
+                    // Cache valid for 5 minutes
+                    if (Date.now() - timestamp < 5 * 60 * 1000) {
+                        setProducts(data);
+                        setTotalPages(meta.total_paginas);
+                        setPage(pageToFetch);
+                        setLoading(false);
+                        return;
                     }
                 }
             }
 
-            setProducts(allData);
+            const response = await productService.getAll(pageToFetch, 100, filters.grupo && filters.grupo !== 'all' ? filters.grupo : undefined, filters.nome || undefined);
 
-            if (allData.length === 0) {
-                toast.info('Nenhum produto encontrado.');
-            }
-            toast.dismiss(toastId);
+            // Server-side filtering is now used.
+
+            setProducts(response.data || []);
+            setTotalPages(response.meta?.total_paginas || 1);
+            setPage(pageToFetch);
+
+            localStorage.setItem(cacheKey, JSON.stringify({
+                data: response.data || [],
+                meta: response.meta,
+                timestamp: Date.now()
+            }));
+
         } catch (error) {
             console.error(error);
             toast.error('Erro ao buscar produtos.');
@@ -70,12 +85,47 @@ export function ProductsReport() {
         }
     };
 
+    const fetchAllForPrint = async () => {
+        setIsPreparingPrint(true);
+        const toastId = toast.loading('Preparando dados para impressão...');
+        try {
+            let allData: Product[] = [];
+            // We need to fetch all pages.
+            // Since we can't easily rely on cache for "all", we might fetch fresh or check cache page by page.
+            // For safety and speed, let's just fetch all fresh or loop.
+
+            // First page to get total pages
+            const p1 = await productService.getAll(1, 100, filters.grupo && filters.grupo !== 'all' ? filters.grupo : undefined, filters.nome || undefined);
+            allData = [...(p1.data || [])];
+            const total = p1.meta?.total_paginas || 1;
+
+            if (total > 1) {
+                // Fetch remaining
+                const promises = [];
+                for (let p = 2; p <= total; p++) {
+                    promises.push(productService.getAll(p, 100, filters.grupo && filters.grupo !== 'all' ? filters.grupo : undefined, filters.nome || undefined));
+                }
+                const responses = await Promise.all(promises);
+                responses.forEach(r => {
+                    if (r.data) allData = [...allData, ...r.data];
+                });
+            }
+
+            setPrintProducts(allData);
+            return true;
+        } catch (e) {
+            console.error(e);
+            toast.error("Erro ao preparar impressão");
+            return false;
+        } finally {
+            toast.dismiss(toastId);
+            setIsPreparingPrint(false);
+        }
+    };
+
     useEffect(() => {
-        // Initial fetch or when filter changes? 
-        // Better to explicitly search on button click for heavy loads, but "useEffect" on mount is standard.
-        // Assuming user wants load on start.
-        fetchAllProducts();
-    }, []); // Only on mount. User clicks "Atualizar Lista" to refresh with filters.
+        fetchProducts(1);
+    }, []);
 
     // Fetch groups on mount
     useEffect(() => {
@@ -90,22 +140,8 @@ export function ProductsReport() {
         loadGroups();
     }, []);
 
-    // Extract unique categories for the filter dropdown (Deprecated - now using API groups)
-    // const categories = useMemo(() => {
-    //     const unique = new Set(products.map(p => p.nome_grupo).filter(Boolean));
-    //     return Array.from(unique).sort();
-    // }, [products]);
-
-    // Apply filters (Client-side filtering for name only, group is used in fetch)
-    const filteredProducts = useMemo(() => {
-        return products.filter(p => {
-            const matchNome = filters.nome
-                ? p.nome.toLowerCase().includes(filters.nome.toLowerCase()) || (p.codigo_interno && p.codigo_interno.includes(filters.nome))
-                : true;
-            // Removed client-side group filter as it's now handled by the API
-            return matchNome;
-        });
-    }, [products, filters.nome]);
+    // Filter displayed products (only for the current page items)
+    const filteredProducts = products;
 
     const toggleColumn = (id: string) => {
         setAvailableColumns(prev => prev.map(col =>
@@ -117,11 +153,25 @@ export function ProductsReport() {
         setIsPrintDialogOpen(true);
     };
 
-    const confirmPrint = () => {
+    const confirmPrint = async () => {
         setIsPrintDialogOpen(false);
-        setTimeout(() => {
-            window.print();
-        }, 500);
+        const success = await fetchAllForPrint();
+        if (success) {
+            setTimeout(() => {
+                window.print();
+            }, 100); // Small delay to allow render
+        }
+    };
+
+    const handleSearch = () => {
+        // Reset to page 1 when searching
+        fetchProducts(1, false); // Force refresh
+    };
+
+    const handlePageChange = (newPage: number) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            fetchProducts(newPage);
+        }
     };
 
     return (
@@ -144,10 +194,13 @@ export function ProductsReport() {
                             td, th {
                                 padding: 4px !important;
                             }
+                            .no-print {
+                                display: none !important;
+                            }
                         }
                     `}
                 </style>
-                <div className="text-center font-bold text-xl mb-2">AYLA DIGITAL</div>
+                <div className="text-center font-bold text-xl mb-2">Icore System</div>
                 <div className="flex justify-between text-sm mb-4 border-b pb-4">
                     <div className="text-left space-y-1">
                         <p>CNPJ: 58.499.151/0001-16</p>
@@ -187,7 +240,7 @@ export function ProductsReport() {
                     </Button>
                     <Button onClick={handlePrintClick} className="gap-2">
                         <Printer className="h-4 w-4" />
-                        Imprimir
+                        Imprimir / PDF
                     </Button>
                 </div>
             </div>
@@ -222,16 +275,38 @@ export function ProductsReport() {
                             </SelectContent>
                         </UISelect>
                     </div>
-                    <Button onClick={fetchAllProducts} disabled={loading}>
+                    <Button onClick={() => handleSearch()} disabled={loading}>
                         {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
                         Atualizar Lista
                     </Button>
                 </CardContent>
             </Card>
 
-            <Card className="print-shadow-none border-none shadow-none">
-                <CardHeader className="print-hidden px-0">
-                    <CardTitle>Lista de Produtos</CardTitle>
+            {/* Main Paginated Table (Screen Only) */}
+            <Card className="print:hidden border-none shadow-none">
+                <CardHeader className="px-0 flex flex-row items-center justify-between">
+                    <CardTitle>Lista de Produtos (Página {page} de {totalPages})</CardTitle>
+                    <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePageChange(page - 1)}
+                            disabled={page <= 1 || loading}
+                        >
+                            Anterior
+                        </Button>
+                        <span className="flex items-center px-2 font-medium">
+                            {page} / {totalPages}
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePageChange(page + 1)}
+                            disabled={page >= totalPages || loading}
+                        >
+                            Próxima
+                        </Button>
+                    </div>
                 </CardHeader>
                 <CardContent className="p-0">
                     <Table>
@@ -240,43 +315,73 @@ export function ProductsReport() {
                                 {availableColumns.filter(c => c.visible).map(col => (
                                     <TableHead key={col.id} className="text-black font-bold">{col.label}</TableHead>
                                 ))}
-                                {showVerificationColumn && (
-                                    <TableHead className="text-black font-bold w-[100px] text-center print:table-cell hidden">Conferência</TableHead>
-                                )}
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {filteredProducts.map((product) => (
-                                <TableRow key={product.id} className="break-inside-avoid">
+                                <TableRow key={product.id}>
                                     {availableColumns.filter(c => c.visible).map(col => (
                                         <TableCell key={col.id}>
                                             {col.id.includes('valor')
-                                                ? Number(product[col.id as keyof Product]).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                                                ? Number(product[col.id as keyof Product] || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
                                                 : product[col.id as keyof Product]}
                                         </TableCell>
                                     ))}
-                                    {showVerificationColumn && (
-                                        <TableCell className="text-center print:table-cell hidden border-l border-gray-300">
-                                            <div className="inline-block w-4 h-4 border border-black rounded-sm print:inline-block"></div>
-                                        </TableCell>
-                                    )}
                                 </TableRow>
                             ))}
                             {filteredProducts.length === 0 && !loading && (
                                 <TableRow>
-                                    <TableCell colSpan={availableColumns.filter(c => c.visible).length + (showVerificationColumn ? 1 : 0)} className="text-center py-8 text-muted-foreground">
-                                        Nenhum produto encontrado.
+                                    <TableCell colSpan={availableColumns.filter(c => c.visible).length} className="text-center py-8 text-muted-foreground">
+                                        Nenhum produto encontrado nesta página.
                                     </TableCell>
                                 </TableRow>
                             )}
                         </TableBody>
                     </Table>
                 </CardContent>
-                <div className="mt-4 text-right font-bold print:mr-4 print:block hidden">
-                    Total de itens: {filteredProducts.length}
+                <div className="mt-4 flex justify-between items-center text-sm text-gray-500">
+                    <span>Mostrando {filteredProducts.length} itens</span>
                 </div>
             </Card>
 
+            {/* FULL Print Table (Hidden on Screen, Visible on Print) */}
+            <div className="hidden print:block">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            {availableColumns.filter(c => c.visible).map(col => (
+                                <TableHead key={col.id} className="text-black font-bold">{col.label}</TableHead>
+                            ))}
+                            {showVerificationColumn && (
+                                <TableHead className="text-black font-bold w-[100px] text-center border-l">Conf.</TableHead>
+                            )}
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {printProducts.map((product) => (
+                            <TableRow key={`print-${product.id}`} className="break-inside-avoid">
+                                {availableColumns.filter(c => c.visible).map(col => (
+                                    <TableCell key={col.id}>
+                                        {col.id.includes('valor')
+                                            ? Number(product[col.id as keyof Product] || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                                            : product[col.id as keyof Product]}
+                                    </TableCell>
+                                ))}
+                                {showVerificationColumn && (
+                                    <TableCell className="text-center border-l border-gray-300 align-middle">
+                                        <div className="inline-block w-4 h-4 border border-black rounded-sm"></div>
+                                    </TableCell>
+                                )}
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+                <div className="mt-4 text-right font-bold border-t pt-2">
+                    Total Geral: {printProducts.length} itens
+                </div>
+            </div>
+
+            {/* Dialogs remain same, just logic update already done above */}
             {/* Column Configuration Dialog */}
             <Dialog open={isColumnModalOpen} onOpenChange={setIsColumnModalOpen}>
                 <DialogContent>
@@ -316,6 +421,10 @@ export function ProductsReport() {
                         <DialogTitle>Configuração de Impressão</DialogTitle>
                         <DialogDescription>
                             Deseja adicionar uma coluna de verificação para conferência manual?
+                            <br />
+                            <span className="text-xs text-muted-foreground mt-2 block">
+                                Isso irá buscar TODOS os produtos ({groups.find(g => String(g.id) === filters.grupo)?.nome || (filters.grupo === 'all' ? 'Todas as categorias' : 'Filtro atual')}) para gerar o relatório completo.
+                            </span>
                         </DialogDescription>
                     </DialogHeader>
                     <div className="flex items-center space-x-2 py-4">
@@ -333,7 +442,10 @@ export function ProductsReport() {
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsPrintDialogOpen(false)}>Cancelar</Button>
-                        <Button onClick={confirmPrint}>Imprimir</Button>
+                        <Button onClick={confirmPrint} disabled={isPreparingPrint}>
+                            {isPreparingPrint ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
+                            {isPreparingPrint ? 'Preparando...' : 'Imprimir'}
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

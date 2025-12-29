@@ -173,7 +173,7 @@ export default function ResaleReport() {
                 <div className="flex items-center justify-between border-b pb-4 mb-4">
                     {/* Left: Logo/Name */}
                     <div className="flex flex-col">
-                        <span className="text-3xl font-bold tracking-tight text-[#E81D88]">AYLA DIGITAL</span>
+                        <span className="text-3xl font-bold tracking-tight text-[#E81D88]">Icore System</span>
                         <span className="text-xs text-gray-500 uppercase tracking-widest mt-1">Sistema de Gestão</span>
                     </div>
                     {/* Right: Company Details */}

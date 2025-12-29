@@ -13,7 +13,7 @@ const phrases = [
     "Decisões inteligentes.",
     "Relatórios precisos.",
     "Controle total.",
-    "Ayla Digital."
+    "Icore System."
 ];
 
 export default function Login() {
@@ -62,23 +62,23 @@ export default function Login() {
     return (
         <div className="flex min-h-screen w-full">
             {/* Left Side - Hero/Typewriter */}
-            <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-pink-600 to-purple-800 text-white flex-col justify-center items-center relative overflow-hidden">
+            <div className="hidden lg:flex w-1/2 bg-zinc-950 text-white flex-col justify-center items-center relative overflow-hidden">
                 <div className="absolute inset-0 bg-black/10" />
                 <div className="z-10 text-center space-y-6 max-w-lg p-8">
-                    <h1 className="text-5xl font-bold mb-4">Ayla Digital</h1>
+                    <h1 className="text-5xl font-bold mb-4">Icore System</h1>
                     <div className="h-20 flex items-center justify-center">
-                        <span className="text-4xl font-light tracking-wide border-r-4 border-white pr-2 animate-pulse">
+                        <span className="text-4xl font-light tracking-wide border-r-4 border-primary pr-2 animate-pulse text-primary">
                             {text}
                         </span>
                     </div>
-                    <p className="text-pink-100 text-lg opacity-90 max-w-md mx-auto leading-relaxed">
+                    <p className="text-gray-400 text-lg opacity-90 max-w-md mx-auto leading-relaxed">
                         Sistema de Gestão de Relatórios completo para impulsionar o seu negócio com dados precisos e insights valiosos.
                     </p>
                 </div>
 
                 {/* Decorative circles */}
-                <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-                <div className="absolute top-1/4 right-0 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute top-1/4 right-0 w-96 h-96 bg-primary/20 rounded-full blur-3xl pointer-events-none" />
             </div>
 
             {/* Right Side - Login Form */}
@@ -95,8 +95,8 @@ export default function Login() {
                         <CardHeader className="space-y-1">
                             {/* Mobile Logo for small screens */}
                             <div className="lg:hidden flex justify-center mb-4">
-                                <div className="bg-pink-100 p-3 rounded-full">
-                                    <span className="text-pink-600 font-bold text-xl">AD</span>
+                                <div className="bg-primary/20 p-3 rounded-full">
+                                    <span className="text-primary font-bold text-xl">IC</span>
                                 </div>
                             </div>
                             <CardTitle className="text-2xl text-center lg:text-left">Login</CardTitle>

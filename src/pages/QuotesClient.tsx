@@ -186,7 +186,7 @@ export default function QuotesClient() {
 
     // Company Data for Print
     const COMPANY_DATA = {
-        name: "AYLA DIGITAL",
+        name: "Icore System",
         cnpj: "58.499.151/0001-16",
         email: "antoniosilva286mv1@gmail.com",
         phone: "(88) 98171-2559",
@@ -204,7 +204,7 @@ export default function QuotesClient() {
             `}</style>
             {/* Header */}
             <div className="flex justify-between items-center no-print">
-                <h1 className="text-3xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-pink-600 to-purple-600">
+                <h1 className="text-3xl font-bold tracking-tight text-foreground">
                     Novo Orçamento {step === 2 && "- Produtos"}
                 </h1>
 
@@ -218,7 +218,7 @@ export default function QuotesClient() {
                             <Download className="h-4 w-4" />
                             PDF
                         </Button>
-                        <Button onClick={() => window.print()} className="gap-2 bg-gradient-to-r from-pink-600 to-purple-600 text-white border-0">
+                        <Button onClick={() => window.print()} className="gap-2">
                             <Printer className="h-4 w-4" />
                             Imprimir
                         </Button>
@@ -252,14 +252,14 @@ export default function QuotesClient() {
             {/* Step 1: Client Selection */}
             {step === 1 && (
                 <div className="max-w-4xl mx-auto">
-                    <Card className="shadow-lg border-pink-100">
-                        <CardHeader className="bg-pink-50/50">
-                            <CardTitle className="flex justify-between items-center text-pink-700">
+                    <Card className="shadow-lg">
+                        <CardHeader>
+                            <CardTitle className="flex justify-between items-center">
                                 Selecione o Cliente
                                 <Dialog open={isNewClientOpen} onOpenChange={setIsNewClientOpen}>
                                     <DialogTrigger asChild>
                                         <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
-                                            <UserPlus className="h-4 w-4 text-pink-600" />
+                                            <UserPlus className="h-4 w-4" />
                                         </Button>
                                     </DialogTrigger>
                                     <DialogContent>
@@ -319,8 +319,8 @@ export default function QuotesClient() {
                                         <div
                                             key={client.id}
                                             className={`p-3 rounded-md cursor-pointer transition-colors flex justify-between items-center ${selectedClient?.id === client.id
-                                                ? 'bg-pink-100 text-pink-700 ring-1 ring-pink-300'
-                                                : 'hover:bg-gray-100'
+                                                ? 'bg-primary/10 ring-1 ring-primary'
+                                                : 'hover:bg-accent'
                                                 }`}
                                             onClick={() => setSelectedClient(client)}
                                         >
@@ -329,7 +329,7 @@ export default function QuotesClient() {
                                                 <div className="text-xs text-muted-foreground">{client.cpf_cnpj}</div>
                                             </div>
                                             {selectedClient?.id === client.id && (
-                                                <div className="text-sm font-semibold">Selecionado</div>
+                                                <div className="text-sm font-semibold text-primary">Selecionado</div>
                                             )}
                                         </div>
                                     ))}
@@ -348,7 +348,6 @@ export default function QuotesClient() {
                                 <Button
                                     onClick={() => setStep(2)}
                                     disabled={!selectedClient}
-                                    className="bg-pink-600 hover:bg-pink-700"
                                 >
                                     Avançar <ArrowRight className="ml-2 h-4 w-4" />
                                 </Button>
@@ -361,9 +360,9 @@ export default function QuotesClient() {
             {/* Step 2: Product & Quote */}
             {step === 2 && (
                 <div className="grid grid-cols-1 gap-6">
-                    <Card className="shadow-lg border-purple-100 no-print">
-                        <CardHeader className="bg-purple-50/50">
-                            <CardTitle className="text-purple-700 flex justify-between items-center">
+                    <Card className="shadow-lg no-print">
+                        <CardHeader>
+                            <CardTitle className="flex justify-between items-center">
                                 Itens do Orçamento
                                 <Button variant="ghost" onClick={() => setStep(1)} className="text-sm">
                                     <ArrowLeft className="mr-2 h-4 w-4" /> Alterar Cliente
@@ -372,11 +371,11 @@ export default function QuotesClient() {
                         </CardHeader>
                         <CardContent className="pt-6 space-y-6">
                             {selectedClient ? (
-                                <div className="bg-blue-50 p-3 rounded-md border border-blue-100 text-sm text-blue-800 mb-4">
+                                <div className="bg-muted p-3 rounded-md border text-sm mb-4">
                                     <strong>Cliente:</strong> {selectedClient.nome} ({selectedClient.cpf_cnpj || 'Sem CPF/CNPJ'})
                                 </div>
                             ) : (
-                                <div className="bg-gray-50 p-3 rounded-md border border-gray-200 text-sm text-gray-800 mb-4">
+                                <div className="bg-muted p-3 rounded-md border text-sm mb-4">
                                     <strong>Cliente:</strong> Não informado
                                 </div>
                             )}
@@ -398,18 +397,18 @@ export default function QuotesClient() {
                                             }}
                                         />
                                         {productSearch && !selectedProduct && (
-                                            <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                                            <div className="absolute z-10 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
                                                 {filterProducts.map(product => (
                                                     <div
                                                         key={product.id}
-                                                        className="p-2 hover:bg-gray-100 cursor-pointer"
+                                                        className="p-2 hover:bg-accent cursor-pointer"
                                                         onClick={() => {
                                                             setSelectedProduct(product);
                                                             setProductSearch(product.nome);
                                                         }}
                                                     >
                                                         <div className="font-medium">{product.nome}</div>
-                                                        <div className="text-xs text-gray-500">R$ {product.valor_venda}</div>
+                                                        <div className="text-xs text-muted-foreground">R$ {product.valor_venda}</div>
                                                     </div>
                                                 ))}
                                             </div>
@@ -438,7 +437,6 @@ export default function QuotesClient() {
                                 <Button
                                     onClick={handleAddProduct}
                                     disabled={!selectedProduct}
-                                    className="bg-purple-600 hover:bg-purple-700 text-white"
                                 >
                                     <Plus className="h-4 w-4 mr-2" />
                                     Adicionar
@@ -507,7 +505,7 @@ export default function QuotesClient() {
                         <div className="p-4 border-t bg-gray-50 flex justify-end">
                             <div className="text-right">
                                 <span className="text-muted-foreground mr-4">Total Geral:</span>
-                                <span className="text-2xl font-bold text-purple-700">
+                                <span className="text-2xl font-bold text-primary">
                                     {calculateTotal().toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                 </span>
                             </div>

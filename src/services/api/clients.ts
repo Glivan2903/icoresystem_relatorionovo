@@ -7,6 +7,7 @@ export interface Client {
     telefone: string;
     celular?: string;
     email: string;
+    ativo?: string;
 }
 
 export interface AddressWrapper {
@@ -46,7 +47,7 @@ export interface ClientsResponse {
 }
 
 export const clientsService = {
-    getAll: async (page = 1, limit = 100, filters?: { nome?: string; cpf_cnpj?: string; email?: string; telefone?: string }) => {
+    getAll: async (page = 1, limit = 100, filters?: { nome?: string; cpf_cnpj?: string; email?: string; telefone?: string; ativo?: string }) => {
         const params: any = { pagina: page, limite: limit, ...filters };
         const response = await api.get<ClientsResponse>('/clientes', { params });
         // The API returns ClientDetail even in getAll slightly differently maybe? 
@@ -72,5 +73,20 @@ export const clientsService = {
     update: async (id: string, data: Partial<ClientDetail>) => {
         const response = await api.put(`/clientes/${id}`, data);
         return response.data;
+    },
+
+    fetchAllClients: async (filters?: { nome?: string; cpf_cnpj?: string; email?: string; telefone?: string; ativo?: string }) => {
+        let allClients: ClientDetail[] = [];
+        let page = 1;
+        let totalPages = 1;
+
+        do {
+            const response = await clientsService.getAll(page, 100, filters);
+            allClients = [...allClients, ...response.data];
+            totalPages = response.meta.total_paginas;
+            page++;
+        } while (page <= totalPages);
+
+        return allClients;
     }
 };

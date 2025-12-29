@@ -2,7 +2,7 @@ import jsPDF from 'jspdf';
 
 export const addCompanyHeader = (doc: jsPDF, title: string) => {
     // Company Header Data
-    const companyName = "AYLA DIGITAL";
+    const companyName = "Icore System";
     const cnpj = "58.499.151/0001-16";
     const email = "antoniosilva286mv1@gmail.com";
     const phone = "(88) 98171-2559";

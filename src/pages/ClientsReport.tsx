@@ -128,7 +128,7 @@ export function ClientsReport() {
                         }
                     `}
                 </style>
-                <div className="text-center font-bold text-2xl mb-4">AYLA DIGITAL</div>
+                <div className="text-center font-bold text-2xl mb-4">Icore System</div>
                 <div className="flex justify-between text-sm mb-4 border-b pb-4">
                     <div className="text-left space-y-1">
                         <p>CNPJ: 58.499.151/0001-16</p>
