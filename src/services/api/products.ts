@@ -11,6 +11,15 @@ export interface Product {
     valor_custo: string;
     valor_venda: string;
     ativo: string;
+    valores: ProductValue[];
+}
+
+export interface ProductValue {
+    tipo_id: string;
+    nome_tipo: string;
+    lucro_utilizado: string;
+    valor_custo: string;
+    valor_venda: string;
 }
 
 export interface ProductResponse {

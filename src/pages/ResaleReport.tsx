@@ -21,8 +21,12 @@ export default function ResaleReport() {
     const [filters, setFilters] = useState({
         nome: '',
         grupo: 'all',
-        somenteComEstoque: false
+        somenteComEstoque: false,
+        priceType: 'custo' as string, // Changed to string to support dynamic types
+        baseValue: 'venda' as 'custo' | 'venda' // New: Select Cost or Sale base
     });
+
+    const [availableTypes, setAvailableTypes] = useState<string[]>([]);
 
     // Column Selection
     const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
@@ -70,6 +74,14 @@ export default function ResaleReport() {
             if (allData.length === 0) {
                 toast.info('Nenhum produto encontrado.');
             }
+
+            // Extract available types from the first product that has them
+            const firstWithValues = allData.find(p => p.valores && p.valores.length > 0);
+            if (firstWithValues) {
+                const types = firstWithValues.valores.map(v => v.nome_tipo);
+                setAvailableTypes(types);
+            }
+
             toast.dismiss(toastId);
         } catch (error) {
             console.error(error);
@@ -121,7 +133,22 @@ export default function ResaleReport() {
         }
 
         return filtered.map(p => {
-            const basePrice = parseFloat(p.valor_custo);
+            let basePrice = 0;
+
+            if (filters.priceType === 'custo' || filters.priceType === 'venda') {
+                // Classic global selection
+                basePrice = parseFloat(filters.priceType === 'custo' ? p.valor_custo : p.valor_venda);
+            } else {
+                // Dynamic Type Selection
+                const valueObj = p.valores?.find(v => v.nome_tipo === filters.priceType);
+                if (valueObj) {
+                    basePrice = parseFloat(filters.baseValue === 'custo' ? valueObj.valor_custo : valueObj.valor_venda);
+                } else {
+                    // Fallback to standard if type not found for this product
+                    basePrice = parseFloat(p.valor_venda);
+                }
+            }
+
             const finalPrice = calculateResalePrice(basePrice, markup);
 
             return {
@@ -251,7 +278,7 @@ export default function ResaleReport() {
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Margem (%)</label>
+                            <label className="text-sm font-medium">Margem / Desconto (%)</label>
                             <div className="relative">
                                 <Calculator className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                                 <Input
@@ -262,6 +289,41 @@ export default function ResaleReport() {
                                 />
                             </div>
                         </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Tabela de Preço</label>
+                            <Select
+                                value={filters.priceType}
+                                onValueChange={(value) => setFilters(prev => ({ ...prev, priceType: value }))}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="custo">Padrão (Custo)</SelectItem>
+                                    <SelectItem value="venda">Padrão (Venda)</SelectItem>
+                                    {availableTypes.map(t => (
+                                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        {availableTypes.includes(filters.priceType) && (
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Base de Valor</label>
+                                <Select
+                                    value={filters.baseValue}
+                                    onValueChange={(value) => setFilters(prev => ({ ...prev, baseValue: value as 'custo' | 'venda' }))}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="custo">Valor de Custo</SelectItem>
+                                        <SelectItem value="venda">Valor de Venda</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
                         <div className="space-y-2 flex items-center h-10 pb-2">
                             <div className="flex items-center space-x-2">
                                 <Switch
@@ -323,8 +385,11 @@ export default function ResaleReport() {
                                                     `${(product as any).percentual_aplicado}%`
                                                 ) : col.id === 'arredondado' ? (
                                                     <span className="text-xs text-muted-foreground">(Arred.)</span>
+                                                ) : col.id === 'valores' ? (
+                                                    // Hide complex object if someone enables it, or map to count
+                                                    <span className="text-xs">{product.valores?.length || 0} tipos</span>
                                                 ) : (
-                                                    product[col.id as keyof Product]
+                                                    (product as any)[col.id]
                                                 )}
                                             </TableCell>
                                         ))}
