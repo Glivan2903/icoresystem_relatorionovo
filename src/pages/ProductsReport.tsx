@@ -324,7 +324,7 @@ export function ProductsReport() {
                                         <TableCell key={col.id}>
                                             {col.id.includes('valor')
                                                 ? Number(product[col.id as keyof Product] || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-                                                : product[col.id as keyof Product]}
+                                                : (product[col.id as keyof Product] as any)}
                                         </TableCell>
                                     ))}
                                 </TableRow>
@@ -364,7 +364,7 @@ export function ProductsReport() {
                                     <TableCell key={col.id}>
                                         {col.id.includes('valor')
                                             ? Number(product[col.id as keyof Product] || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-                                            : product[col.id as keyof Product]}
+                                            : (product[col.id as keyof Product] as any)}
                                     </TableCell>
                                 ))}
                                 {showVerificationColumn && (
