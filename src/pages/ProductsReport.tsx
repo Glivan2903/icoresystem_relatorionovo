@@ -6,9 +6,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select as UISelect, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { productService, type Product, type ProductGroup } from '@/services/api/products';
-import { Loader2, Search, Printer, Settings } from 'lucide-react';
+import { clientsService, type Client } from '@/services/api/clients';
+import { Loader2, Search, Printer, Settings, Download } from 'lucide-react';
 import { toast } from 'sonner';
+import { addCompanyHeader } from '@/lib/reportUtils';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export function ProductsReport() {
     // State
@@ -16,10 +21,22 @@ export function ProductsReport() {
     const [printProducts, setPrintProducts] = useState<Product[]>([]);
     const [groups, setGroups] = useState<ProductGroup[]>([]);
     const [loading, setLoading] = useState(false);
+
+    // Filters
     const [filters, setFilters] = useState({
         nome: '',
         grupo: ''
     });
+
+    // Client Selection State (Quotes Feature)
+    const [clients, setClients] = useState<Client[]>([]);
+    const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+    const [clientSearch, setClientSearch] = useState('');
+    const [isClientModalOpen, setIsClientModalOpen] = useState(false);
+
+    // Calculation State (Quotes Feature)
+    const [quantity, setQuantity] = useState<number>(1);
+    const [percentage, setPercentage] = useState<number>(0);
 
     // Pagination State
     const [page, setPage] = useState(1);
@@ -30,10 +47,15 @@ export function ProductsReport() {
     const [availableColumns, setAvailableColumns] = useState([
         { id: 'codigo_interno', label: 'Código', visible: true },
         { id: 'nome', label: 'Descrição', visible: true },
-        { id: 'valor_custo', label: 'Valor Custo', visible: true },
+        { id: 'valor_custo', label: 'V. Custo', visible: false },
         { id: 'estoque', label: 'Estoque', visible: true },
         { id: 'nome_grupo', label: 'Categoria', visible: false },
-        { id: 'valor_venda', label: 'Valor Venda', visible: false },
+        { id: 'valor_venda', label: 'V. Venda', visible: true },
+        { id: 'quantidade', label: 'Qtd', visible: false },
+        { id: 'percentage', label: '%', visible: false },
+        { id: 'valor_porcentagem', label: 'Valor %', visible: false },
+        { id: 'unitPrice', label: 'V. Final', visible: true },
+        { id: 'total', label: 'Total', visible: true },
         { id: 'id', label: 'ID Sistema', visible: false },
     ]);
 
@@ -65,8 +87,6 @@ export function ProductsReport() {
 
             const response = await productService.getAll(pageToFetch, 100, filters.grupo && filters.grupo !== 'all' ? filters.grupo : undefined, filters.nome || undefined);
 
-            // Server-side filtering is now used.
-
             setProducts(response.data || []);
             setTotalPages(response.meta?.total_paginas || 1);
             setPage(pageToFetch);
@@ -90,9 +110,6 @@ export function ProductsReport() {
         const toastId = toast.loading('Preparando dados para impressão...');
         try {
             let allData: Product[] = [];
-            // We need to fetch all pages.
-            // Since we can't easily rely on cache for "all", we might fetch fresh or check cache page by page.
-            // For safety and speed, let's just fetch all fresh or loop.
 
             // First page to get total pages
             const p1 = await productService.getAll(1, 100, filters.grupo && filters.grupo !== 'all' ? filters.grupo : undefined, filters.nome || undefined);
@@ -112,11 +129,11 @@ export function ProductsReport() {
             }
 
             setPrintProducts(allData);
-            return true;
+            return allData;
         } catch (e) {
             console.error(e);
             toast.error("Erro ao preparar impressão");
-            return false;
+            return null;
         } finally {
             toast.dismiss(toastId);
             setIsPreparingPrint(false);
@@ -125,6 +142,7 @@ export function ProductsReport() {
 
     useEffect(() => {
         fetchProducts(1);
+        loadClients();
     }, []);
 
     // Fetch groups on mount
@@ -140,8 +158,19 @@ export function ProductsReport() {
         loadGroups();
     }, []);
 
+    const loadClients = async () => {
+        try {
+            // Fetching a reasonable number of clients for search
+            const response = await clientsService.getAll(1, 1000);
+            setClients((response as any).data || []);
+        } catch (error) {
+            console.error("Failed to load clients", error);
+        }
+    }
+
     // Filter displayed products (only for the current page items)
     const filteredProducts = products;
+    const filteredClients = clients.filter(c => c.nome.toLowerCase().includes(clientSearch.toLowerCase()));
 
     const toggleColumn = (id: string) => {
         setAvailableColumns(prev => prev.map(col =>
@@ -155,12 +184,71 @@ export function ProductsReport() {
 
     const confirmPrint = async () => {
         setIsPrintDialogOpen(false);
-        const success = await fetchAllForPrint();
-        if (success) {
+        const data = await fetchAllForPrint();
+        if (data) {
             setTimeout(() => {
                 window.print();
-            }, 100); // Small delay to allow render
+            }, 100);
         }
+    };
+
+    const exportPDF = async () => {
+        const data = await fetchAllForPrint();
+        if (!data) return;
+
+        const clientName = selectedClient ? selectedClient.nome : 'Cliente Não Informado';
+
+        const doc = new jsPDF();
+        addCompanyHeader(doc, 'Relatório de Produtos / Orçamento');
+
+        doc.setFontSize(12);
+        doc.text(`Cliente: ${clientName}`, 14, 55);
+        doc.text(`Data: ${new Date().toLocaleDateString()}`, 14, 62);
+
+        const visibleCols = availableColumns.filter(c => c.visible);
+        const head = [visibleCols.map(c => c.label)];
+
+        let totalGeral = 0;
+
+        const body = data.map(product => {
+            const row: any[] = [];
+            const basePrice = Number(product.valor_venda);
+
+            // Calculate fields
+            const finalUnitPrice = Math.ceil(basePrice + (basePrice * percentage / 100));
+            const subTotal = finalUnitPrice * quantity;
+            const percentValue = finalUnitPrice - basePrice;
+
+            totalGeral += subTotal;
+
+            visibleCols.forEach(col => {
+                if (col.id === 'codigo_interno') row.push(product.codigo_interno || '-');
+                else if (col.id === 'nome') row.push(product.nome);
+                else if (col.id === 'estoque') row.push(product.estoque);
+                else if (col.id === 'nome_grupo') row.push(product.nome_grupo || '-');
+                else if (col.id === 'valor_custo') row.push(Number(product.valor_custo).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
+                else if (col.id === 'valor_venda') row.push(basePrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
+                else if (col.id === 'quantidade') row.push(quantity);
+                else if (col.id === 'percentage') row.push(`${percentage}%`);
+                else if (col.id === 'valor_porcentagem') row.push(percentValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
+                else if (col.id === 'unitPrice') row.push(finalUnitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
+                else if (col.id === 'total') row.push(subTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
+                else if (col.id === 'id') row.push(product.id);
+            });
+            return row;
+        });
+
+        autoTable(doc, {
+            startY: 70,
+            head: head,
+            body: body,
+            styles: { fontSize: 8 },
+        });
+
+        const finalY = (doc as any).lastAutoTable.finalY + 10;
+        doc.text(`Total Geral: ${totalGeral.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`, 14, finalY);
+
+        doc.save('produtos_orcamento.pdf');
     };
 
     const handleSearch = () => {
@@ -172,6 +260,26 @@ export function ProductsReport() {
         if (newPage >= 1 && newPage <= totalPages) {
             fetchProducts(newPage);
         }
+    };
+
+    // Helper to render cell content with calculations
+    const renderCell = (product: Product, colId: string) => {
+        const basePrice = Number(product.valor_venda);
+        const finalUnitPrice = Math.ceil(basePrice + (basePrice * percentage / 100));
+        const subTotal = finalUnitPrice * quantity;
+        const percentValue = finalUnitPrice - basePrice;
+
+        if (colId === 'quantidade') return quantity;
+        if (colId === 'percentage') return `${percentage}%`;
+        if (colId === 'valor_porcentagem') return percentValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        if (colId === 'unitPrice') return finalUnitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        if (colId === 'total') return subTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+        if (colId.includes('valor')) {
+            return Number(product[colId as keyof Product] || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        }
+
+        return (product[colId as keyof Product] as any);
     };
 
     return (
@@ -213,7 +321,14 @@ export function ProductsReport() {
                         <p>CEP: 63200-000</p>
                     </div>
                 </div>
-                <div className="text-center font-bold text-lg uppercase mb-2">Relatório de Produtos</div>
+                <div className="text-center font-bold text-lg uppercase mb-2">
+                    Relatório de Produtos / Orçamento
+                </div>
+
+                <div className="mt-4 flex justify-between">
+                    <p><strong>Cliente:</strong> {selectedClient ? selectedClient.nome : 'Cliente Não Informado'}</p>
+                    <p><strong>Data:</strong> {new Date().toLocaleDateString()}</p>
+                </div>
 
                 {/* Print Filters Display */}
                 {(filters.nome || (filters.grupo && filters.grupo !== 'all')) && (
@@ -232,53 +347,100 @@ export function ProductsReport() {
             </div>
 
             <div className="flex items-center justify-between no-print">
-                <h1 className="text-3xl font-bold tracking-tight">Produtos</h1>
+                <h1 className="text-3xl font-bold tracking-tight">Produtos / Orçamento</h1>
                 <div className="flex gap-2">
-                    <Button onClick={() => setIsColumnModalOpen(true)}>
+                    <Button onClick={() => setIsColumnModalOpen(true)} variant="outline">
                         <Settings className="h-4 w-4 mr-2" />
                         Colunas
                     </Button>
+                    <Button onClick={exportPDF} variant="outline" className="gap-2">
+                        <Download className="h-4 w-4" />
+                        PDF
+                    </Button>
                     <Button onClick={handlePrintClick} className="gap-2">
                         <Printer className="h-4 w-4" />
-                        Imprimir / PDF
+                        Imprimir
                     </Button>
                 </div>
             </div>
 
             <Card className="no-print">
                 <CardHeader>
-                    <CardTitle>Filtros de Busca</CardTitle>
+                    <CardTitle>Filtros e Configurações</CardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 md:grid-cols-3 items-end">
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium">Nome / Código</label>
-                        <Input
-                            value={filters.nome}
-                            onChange={(e) => setFilters(prev => ({ ...prev, nome: e.target.value }))}
-                            placeholder="Buscar por nome ou código..."
-                        />
+                <CardContent className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-4 items-end">
+                        <div className="space-y-2 relative">
+                            <Label>Cliente</Label>
+                            <div className="flex gap-2">
+                                <Input
+                                    placeholder="Selecionar Cliente..."
+                                    value={selectedClient ? selectedClient.nome : ''}
+                                    readOnly
+                                    onClick={() => setIsClientModalOpen(true)}
+                                    className="cursor-pointer"
+                                />
+                                {selectedClient && (
+                                    <Button variant="ghost" size="icon" onClick={() => setSelectedClient(null)}>
+                                        <span className="text-red-500">X</span>
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label>Nome / Código</Label>
+                            <Input
+                                value={filters.nome}
+                                onChange={(e) => setFilters(prev => ({ ...prev, nome: e.target.value }))}
+                                placeholder="Buscar..."
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Categoria</Label>
+                            <UISelect
+                                value={filters.grupo}
+                                onValueChange={(value) => setFilters(prev => ({ ...prev, grupo: value }))}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Todas" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Todas</SelectItem>
+                                    {groups.map((group) => (
+                                        <SelectItem key={group.id} value={String(group.id)}>{group.nome}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </UISelect>
+                        </div>
+                        <Button onClick={() => handleSearch()} disabled={loading}>
+                            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                            Filtrar
+                        </Button>
                     </div>
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium">Categoria</label>
-                        <UISelect
-                            value={filters.grupo}
-                            onValueChange={(value) => setFilters(prev => ({ ...prev, grupo: value }))}
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Todas as categorias" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">Todas as categorias</SelectItem>
-                                {groups.map((group) => (
-                                    <SelectItem key={group.id} value={String(group.id)}>{group.nome}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </UISelect>
+
+                    <div className="grid gap-4 md:grid-cols-4 items-end border-t pt-4">
+                        <div className="space-y-2">
+                            <Label>Quantidade Padrão</Label>
+                            <Input
+                                type="number"
+                                min="1"
+                                value={quantity}
+                                onChange={(e) => setQuantity(Number(e.target.value))}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Margem / Desconto (%)</Label>
+                            <Input
+                                type="number"
+                                value={percentage}
+                                onChange={(e) => setPercentage(Number(e.target.value))}
+                            />
+                        </div>
+                        <div className="col-span-2 text-sm text-muted-foreground pb-2">
+                            * Valores negativos aplicam desconto. Valores positivos aplicam margem.
+                        </div>
                     </div>
-                    <Button onClick={() => handleSearch()} disabled={loading}>
-                        {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                        Atualizar Lista
-                    </Button>
                 </CardContent>
             </Card>
 
@@ -322,9 +484,7 @@ export function ProductsReport() {
                                 <TableRow key={product.id}>
                                     {availableColumns.filter(c => c.visible).map(col => (
                                         <TableCell key={col.id}>
-                                            {col.id.includes('valor')
-                                                ? Number(product[col.id as keyof Product] || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-                                                : (product[col.id as keyof Product] as any)}
+                                            {renderCell(product, col.id)}
                                         </TableCell>
                                     ))}
                                 </TableRow>
@@ -362,9 +522,7 @@ export function ProductsReport() {
                             <TableRow key={`print-${product.id}`} className="break-inside-avoid">
                                 {availableColumns.filter(c => c.visible).map(col => (
                                     <TableCell key={col.id}>
-                                        {col.id.includes('valor')
-                                            ? Number(product[col.id as keyof Product] || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-                                            : (product[col.id as keyof Product] as any)}
+                                        {renderCell(product, col.id)}
                                     </TableCell>
                                 ))}
                                 {showVerificationColumn && (
@@ -381,7 +539,55 @@ export function ProductsReport() {
                 </div>
             </div>
 
-            {/* Dialogs remain same, just logic update already done above */}
+            {/* Client Selection Modal */}
+            <Dialog open={isClientModalOpen} onOpenChange={setIsClientModalOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Selecionar Cliente</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="relative">
+                            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Buscar cliente..."
+                                className="pl-8"
+                                value={clientSearch}
+                                onChange={(e) => setClientSearch(e.target.value)}
+                            />
+                        </div>
+                        <div className="h-[300px] overflow-y-auto border rounded-md p-2 space-y-1">
+                            {filteredClients.map(client => (
+                                <div
+                                    key={client.id}
+                                    className={`p-3 rounded-md cursor-pointer transition-colors flex justify-between items-center ${selectedClient?.id === client.id
+                                        ? 'bg-primary/10 ring-1 ring-primary'
+                                        : 'hover:bg-accent'
+                                        }`}
+                                    onClick={() => {
+                                        setSelectedClient(client);
+                                        setIsClientModalOpen(false);
+                                    }}
+                                >
+                                    <div>
+                                        <div className="font-medium">{client.nome}</div>
+                                        <div className="text-xs text-muted-foreground">{client.cpf_cnpj}</div>
+                                    </div>
+                                    {selectedClient?.id === client.id && (
+                                        <div className="text-sm font-semibold text-primary">Selecionado</div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                        <Button variant="outline" onClick={() => {
+                            setSelectedClient(null);
+                            setIsClientModalOpen(false);
+                        }}>
+                            Limpar Seleção
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
             {/* Column Configuration Dialog */}
             <Dialog open={isColumnModalOpen} onOpenChange={setIsColumnModalOpen}>
                 <DialogContent>
