@@ -128,6 +128,9 @@ export function ProductsReport() {
                 });
             }
 
+            // Sort alphabetically by name
+            allData.sort((a, b) => a.nome.localeCompare(b.nome));
+
             setPrintProducts(allData);
             return allData;
         } catch (e) {
