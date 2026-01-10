@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { productService, type Product, type ProductGroup } from '@/services/api/products';
 import { clientsService, type Client } from '@/services/api/clients';
 import { Loader2, Search, Printer, Settings, Download } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { addCompanyHeader } from '@/lib/reportUtils';
 import jsPDF from 'jspdf';
@@ -25,7 +26,12 @@ export function ProductsReport() {
     // Filters
     const [filters, setFilters] = useState({
         nome: '',
-        grupo: ''
+        nome: '',
+        grupo: '',
+        showNoStock: false // Default: Hide items with no stock (logic reversed: false = filter active, true = show all? Let's match Resale)
+        // Actually, Resale: checked = showNoStock. 
+        // Let's stick to: checked (true) -> "Exibir sem estoque" (Show items without stock) -> Show EVERYTHING.
+        // unchecked (false) -> Hide items without stock.
     });
 
     // Client Selection State (Quotes Feature)
@@ -131,6 +137,11 @@ export function ProductsReport() {
             // Sort alphabetically by name
             allData.sort((a, b) => a.nome.localeCompare(b.nome));
 
+            // Apply Filters for Print
+            if (!filters.showNoStock) {
+                allData = allData.filter(p => p.estoque > 0);
+            }
+
             setPrintProducts(allData);
             return allData;
         } catch (e) {
@@ -172,7 +183,10 @@ export function ProductsReport() {
     }
 
     // Filter displayed products (only for the current page items)
-    const filteredProducts = products;
+    const filteredProducts = products.filter(p => {
+        if (!filters.showNoStock && p.estoque <= 0) return false;
+        return true;
+    });
     const filteredClients = clients.filter(c => c.nome.toLowerCase().includes(clientSearch.toLowerCase()));
 
     const toggleColumn = (id: string) => {
@@ -431,6 +445,18 @@ export function ProductsReport() {
                                 value={quantity}
                                 onChange={(e) => setQuantity(Number(e.target.value))}
                             />
+                        </div>
+                        <div className="space-y-2 flex items-center h-10 pb-2">
+                            <div className="flex items-center space-x-2 mt-6">
+                                <Switch
+                                    id="stock-filter"
+                                    checked={filters.showNoStock}
+                                    onCheckedChange={(checked) => setFilters(prev => ({ ...prev, showNoStock: checked }))}
+                                />
+                                <Label htmlFor="stock-filter" className="cursor-pointer">
+                                    Exibir sem estoque
+                                </Label>
+                            </div>
                         </div>
                         <div className="space-y-2">
                             <Label>Margem / Desconto (%)</Label>
