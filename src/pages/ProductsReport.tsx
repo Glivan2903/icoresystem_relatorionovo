@@ -26,7 +26,7 @@ export function ProductsReport() {
     // Filters
     const [filters, setFilters] = useState({
         nome: '',
-        nome: '',
+
         grupo: '',
         showNoStock: false // Default: Hide items with no stock (logic reversed: false = filter active, true = show all? Let's match Resale)
         // Actually, Resale: checked = showNoStock. 
