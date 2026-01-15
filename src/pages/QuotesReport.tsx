@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { addCompanyHeader } from '@/lib/reportUtils';
+import { ReportHeader } from '@/components/shared/ReportHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -108,6 +109,7 @@ export default function QuotesReport() {
 
     return (
         <div className="space-y-6">
+            <ReportHeader title="Relatório de Orçamentos" />
             <div className="flex items-center justify-between no-print">
                 <h1 className="text-3xl font-bold tracking-tight">Relatório de Orçamentos</h1>
                 <div className="flex gap-2">

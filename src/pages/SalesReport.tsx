@@ -10,6 +10,7 @@ import { paymentMethodsService, type PaymentMethod } from '@/services/api/paymen
 import { Printer, Eye, Settings, ShoppingCart } from 'lucide-react';
 import { Select as UISelect, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { ReportHeader } from '@/components/shared/ReportHeader';
 
 export default function SalesReport() {
     // State
@@ -158,30 +159,8 @@ export default function SalesReport() {
     return (
         <div className="space-y-6">
             {/* Print Header */}
-            <div className="hidden print:block mb-8">
-                <style type="text/css" media="print">
-                    {`
-                        @page {
-                            size: landscape;
-                            margin: 10mm;
-                        }
-                    `}
-                </style>
-                <div className="text-center font-bold text-2xl mb-4">Icore System</div>
-                <div className="flex justify-between text-sm mb-4 border-b pb-4">
-                    <div className="text-left space-y-1">
-                        <p>CNPJ: 58.499.151/0001-16</p>
-                        <p>Email: antoniosilva286mv1@gmail.com</p>
-                        <p>Tel: (88) 98171-2559</p>
-                    </div>
-                    <div className="text-right space-y-1">
-                        <p>RUA AFONSO RIBEIRO, 436</p>
-                        <p>CENTRO, 733 - Missão Velha (CE)</p>
-                        <p>CEP: 63200-000</p>
-                    </div>
-                </div>
-                <div className="text-center font-bold text-xl uppercase mb-6">Relatório de Vendas</div>
-
+            {/* Print Header */}
+            <ReportHeader title="Relatório de Vendas">
                 {/* Print Filters Display */}
                 {(filters.clientName || filters.paymentMethod || filters.startDate || filters.endDate) && (
                     <div className="mb-4 p-2 border rounded bg-gray-50 text-sm">
@@ -194,7 +173,7 @@ export default function SalesReport() {
                         </div>
                     </div>
                 )}
-            </div>
+            </ReportHeader>
 
             <div className="flex items-center justify-between no-print">
                 <h1 className="text-3xl font-bold tracking-tight">Relatório de Vendas</h1>

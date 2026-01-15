@@ -15,12 +15,14 @@ import { toast } from 'sonner';
 import { addCompanyHeader } from '@/lib/reportUtils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { ReportHeader } from '@/components/shared/ReportHeader';
 
 export function ProductsReport() {
     // State
     const [products, setProducts] = useState<Product[]>([]);
     const [printProducts, setPrintProducts] = useState<Product[]>([]);
     const [groups, setGroups] = useState<ProductGroup[]>([]);
+    const [availableTypes, setAvailableTypes] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
 
     // Filters
@@ -28,10 +30,10 @@ export function ProductsReport() {
         nome: '',
 
         grupo: '',
-        showNoStock: false // Default: Hide items with no stock (logic reversed: false = filter active, true = show all? Let's match Resale)
-        // Actually, Resale: checked = showNoStock. 
-        // Let's stick to: checked (true) -> "Exibir sem estoque" (Show items without stock) -> Show EVERYTHING.
-        // unchecked (false) -> Hide items without stock.
+
+        showNoStock: false,
+        priceType: 'custo', // 'custo', 'venda', or dynamic type
+        baseValue: 'venda' as 'custo' | 'venda'
     });
 
     // Client Selection State (Quotes Feature)
@@ -96,6 +98,13 @@ export function ProductsReport() {
             setProducts(response.data || []);
             setTotalPages(response.meta?.total_paginas || 1);
             setPage(pageToFetch);
+
+            // Extract available types from the first product that has them
+            const firstWithValues = (response.data || []).find(p => p.valores && p.valores.length > 0);
+            if (firstWithValues) {
+                const types = firstWithValues.valores.map(v => v.nome_tipo);
+                setAvailableTypes(types);
+            }
 
             localStorage.setItem(cacheKey, JSON.stringify({
                 data: response.data || [],
@@ -182,6 +191,28 @@ export function ProductsReport() {
         }
     }
 
+
+
+    // Process Price Logic
+    const getProcessedPrice = (product: Product) => {
+        let basePrice = 0;
+
+        if (filters.priceType === 'custo') {
+            basePrice = parseFloat(product.valor_custo);
+        } else if (filters.priceType === 'venda') {
+            basePrice = parseFloat(product.valor_venda);
+        } else {
+            // Dynamic Type
+            const valueObj = product.valores?.find(v => v.nome_tipo === filters.priceType);
+            if (valueObj) {
+                basePrice = parseFloat(filters.baseValue === 'custo' ? valueObj.valor_custo : valueObj.valor_venda);
+            } else {
+                basePrice = parseFloat(product.valor_venda); // Fallback
+            }
+        }
+        return basePrice;
+    };
+
     // Filter displayed products (only for the current page items)
     const filteredProducts = products.filter(p => {
         if (!filters.showNoStock && p.estoque <= 0) return false;
@@ -229,7 +260,9 @@ export function ProductsReport() {
 
         const body = data.map(product => {
             const row: any[] = [];
-            const basePrice = Number(product.valor_venda);
+
+            // Use processed price instead of raw valor_venda
+            const basePrice = getProcessedPrice(product);
 
             // Calculate fields
             const finalUnitPrice = Math.ceil(basePrice + (basePrice * percentage / 100));
@@ -244,7 +277,7 @@ export function ProductsReport() {
                 else if (col.id === 'estoque') row.push(product.estoque);
                 else if (col.id === 'nome_grupo') row.push(product.nome_grupo || '-');
                 else if (col.id === 'valor_custo') row.push(Number(product.valor_custo).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
-                else if (col.id === 'valor_venda') row.push(basePrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
+                else if (col.id === 'valor_venda') row.push(basePrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })); // Show the USED base price
                 else if (col.id === 'quantidade') row.push(quantity);
                 else if (col.id === 'percentage') row.push(`${percentage}%`);
                 else if (col.id === 'valor_porcentagem') row.push(percentValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
@@ -281,7 +314,9 @@ export function ProductsReport() {
 
     // Helper to render cell content with calculations
     const renderCell = (product: Product, colId: string) => {
-        const basePrice = Number(product.valor_venda);
+        // Use processed price
+        const basePrice = getProcessedPrice(product);
+
         const finalUnitPrice = Math.ceil(basePrice + (basePrice * percentage / 100));
         const subTotal = finalUnitPrice * quantity;
         const percentValue = finalUnitPrice - basePrice;
@@ -291,6 +326,10 @@ export function ProductsReport() {
         if (colId === 'valor_porcentagem') return percentValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
         if (colId === 'unitPrice') return finalUnitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
         if (colId === 'total') return subTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+        if (colId === 'valor_venda') {
+            return basePrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        }
 
         if (colId.includes('valor')) {
             return Number(product[colId as keyof Product] || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -302,47 +341,9 @@ export function ProductsReport() {
     return (
         <div className="space-y-6">
             {/* Print Header - Visible only when printing */}
-            <div className="hidden print:block mb-8">
-                <style type="text/css" media="print">
-                    {`
-                        @page { 
-                            size: portrait; 
-                            margin: 10mm;
-                        }
-                        @media print {
-                            body {
-                                -webkit-print-color-adjust: exact;
-                            }
-                            table {
-                                font-size: 10px;
-                            }
-                            td, th {
-                                padding: 4px !important;
-                            }
-                            .no-print {
-                                display: none !important;
-                            }
-                        }
-                    `}
-                </style>
-                <div className="text-center font-bold text-xl mb-2">Icore System</div>
-                <div className="flex justify-between text-sm mb-4 border-b pb-4">
-                    <div className="text-left space-y-1">
-                        <p>CNPJ: 58.499.151/0001-16</p>
-                        <p>Email: antoniosilva286mv1@gmail.com</p>
-                        <p>Tel: (88) 98171-2559</p>
-                    </div>
-                    <div className="text-right space-y-1">
-                        <p>RUA AFONSO RIBEIRO, 436</p>
-                        <p>CENTRO, 733 - Missão Velha (CE)</p>
-                        <p>CEP: 63200-000</p>
-                    </div>
-                </div>
-                <div className="text-center font-bold text-lg uppercase mb-2">
-                    Relatório de Produtos / Orçamento
-                </div>
-
-                <div className="mt-4 flex justify-between">
+            {/* Print Header - Visible only when printing */}
+            <ReportHeader title="Relatório de Produtos / Orçamento">
+                <div className="mt-4 flex justify-between mb-4">
                     <p><strong>Cliente:</strong> {selectedClient ? selectedClient.nome : 'Cliente Não Informado'}</p>
                     <p><strong>Data:</strong> {new Date().toLocaleDateString()}</p>
                 </div>
@@ -361,7 +362,7 @@ export function ProductsReport() {
                         </div>
                     </div>
                 )}
-            </div>
+            </ReportHeader>
 
             <div className="flex items-center justify-between no-print">
                 <h1 className="text-3xl font-bold tracking-tight">Produtos / Orçamento</h1>
@@ -434,6 +435,41 @@ export function ProductsReport() {
                             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
                             Filtrar
                         </Button>
+                        <div className="space-y-2">
+                            <Label>Tabela de Preço</Label>
+                            <UISelect
+                                value={filters.priceType}
+                                onValueChange={(value) => setFilters(prev => ({ ...prev, priceType: value }))}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="custo">Padrão (Custo)</SelectItem>
+                                    <SelectItem value="venda">Padrão (Venda)</SelectItem>
+                                    {availableTypes.map(t => (
+                                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </UISelect>
+                        </div>
+                        {availableTypes.includes(filters.priceType) && (
+                            <div className="space-y-2">
+                                <Label>Base de Valor</Label>
+                                <UISelect
+                                    value={filters.baseValue}
+                                    onValueChange={(value) => setFilters(prev => ({ ...prev, baseValue: value as 'custo' | 'venda' }))}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="custo">Valor de Custo</SelectItem>
+                                        <SelectItem value="venda">Valor de Venda</SelectItem>
+                                    </SelectContent>
+                                </UISelect>
+                            </div>
+                        )}
                     </div>
 
                     <div className="grid gap-4 md:grid-cols-4 items-end border-t pt-4">

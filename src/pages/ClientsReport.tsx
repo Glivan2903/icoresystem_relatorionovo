@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { clientsService, type Client, type ClientDetail } from '@/services/api/clients';
 import { Loader2, Printer, Eye, Settings } from 'lucide-react';
 import { toast } from 'sonner';
+import { ReportHeader } from '@/components/shared/ReportHeader';
 
 export function ClientsReport() {
     const [clients, setClients] = useState<Client[]>([]);
@@ -118,31 +119,8 @@ export function ClientsReport() {
     return (
         <div className="space-y-6">
             {/* Print Header - Visible only when printing */}
-            <div className="hidden print:block mb-8">
-                <style type="text/css" media="print">
-                    {`
-                        @page { 
-                        @page {
-                            size: landscape;
-                            margin: 10mm;
-                        }
-                    `}
-                </style>
-                <div className="text-center font-bold text-2xl mb-4">Icore System</div>
-                <div className="flex justify-between text-sm mb-4 border-b pb-4">
-                    <div className="text-left space-y-1">
-                        <p>CNPJ: 58.499.151/0001-16</p>
-                        <p>Email: antoniosilva286mv1@gmail.com</p>
-                        <p>Tel: (88) 98171-2559</p>
-                    </div>
-                    <div className="text-right space-y-1">
-                        <p>RUA AFONSO RIBEIRO, 436</p>
-                        <p>CENTRO, 733 - Missão Velha (CE)</p>
-                        <p>CEP: 63200-000</p>
-                    </div>
-                </div>
-                <div className="text-center font-bold text-xl uppercase mb-6">Relatório de Clientes</div>
-            </div>
+            {/* Print Header - Visible only when printing */}
+            <ReportHeader title="Relatório de Clientes" />
 
             <div className="flex items-center justify-between no-print">
                 <h1 className="text-3xl font-bold tracking-tight">Clientes</h1>

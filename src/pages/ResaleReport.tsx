@@ -10,6 +10,7 @@ import { productService, type Product, type ProductGroup } from '@/services/api/
 import { Switch } from '@/components/ui/switch';
 import { Loader2, Calculator, Printer, Settings, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { ReportHeader } from '@/components/shared/ReportHeader';
 
 export default function ResaleReport() {
     // State
@@ -182,55 +183,14 @@ export default function ResaleReport() {
         <div className="space-y-6">
             {/* Print Header */}
             {/* Print Header */}
-            <div className="hidden print:block mb-6 font-sans">
-                <style type="text/css" media="print">
-                    {`
-                        @page {
-                            size: portrait;
-                            margin: 10mm;
-                        }
-                        @media print {
-                            body { -webkit-print-color-adjust: exact; }
-                            table { font-size: 10px; }
-                            td, th { padding: 4px !important; }
-                        }
-                    `}
-                </style>
-
-                <div className="flex items-center justify-between border-b pb-4 mb-4">
-                    {/* Left: Logo/Name */}
-                    <div className="flex flex-col">
-                        <span className="text-3xl font-bold tracking-tight text-[#E81D88]">Icore System</span>
-                        <span className="text-xs text-gray-500 uppercase tracking-widest mt-1">Sistema de Gestão</span>
-                    </div>
-                    {/* Right: Company Details */}
-                    <div className="text-right text-xs space-y-1.5 text-gray-600">
-                        <p><span className="font-bold text-gray-800">CNPJ:</span> 58.499.151/0001-16</p>
-                        <p><span className="font-bold text-gray-800">Email:</span> antoniosilva286mv1@gmail.com</p>
-                        <p><span className="font-bold text-gray-800">Tel:</span> (88) 98171-2559</p>
-                    </div>
-                </div>
-
-                {/* Full width Address */}
-                <div className="text-center text-[10px] text-gray-500 mb-8 uppercase tracking-wide">
-                    Rua Afonso Ribeiro, 436 - Centro, 733 - Missão Velha (CE) - CEP: 63200-000
-                </div>
-
-                {/* Report Title */}
-                <div className="text-center space-y-2 mb-6">
-                    <h1 className="text-2xl font-bold uppercase tracking-wide inline-block px-8 pb-2 border-b-2 border-[#E81D88]">
-                        Tabela de Revenda
-                    </h1>
-                </div>
-
-                {/* Print Context Info */}
+            <ReportHeader title="Tabela de Revenda">
                 {(filters.nome || (filters.grupo && filters.grupo !== 'all')) && (
                     <div className="mb-6 p-3 border border-gray-200 rounded-lg bg-gray-50 text-xs flex flex-wrap justify-center gap-x-6 gap-y-2">
                         {filters.nome && <span>Busca: <strong>{filters.nome}</strong></span>}
                         {filters.grupo && filters.grupo !== 'all' && <span>Categoria: <strong>{groups.find(g => String(g.id) === filters.grupo)?.nome || filters.grupo}</strong></span>}
                     </div>
                 )}
-            </div>
+            </ReportHeader>
 
             <div className="flex items-center justify-between no-print">
                 <h1 className="text-3xl font-bold tracking-tight">Tabela de Revenda</h1>
