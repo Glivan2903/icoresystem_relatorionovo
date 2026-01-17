@@ -581,10 +581,10 @@ export function ProductsReport() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {printProducts.map((product) => (
-                            <TableRow key={`print-${product.id}`} className="break-inside-avoid">
+                        {printProducts.map((product, index) => (
+                            <TableRow key={`print-${product.id}`} className={`break-inside-avoid ${index % 2 === 0 ? 'bg-white' : 'bg-[#FFFDE7]'}`}>
                                 {availableColumns.filter(c => c.visible).map(col => (
-                                    <TableCell key={col.id}>
+                                    <TableCell key={col.id} className={col.id === 'unitPrice' || col.id === 'total' || col.id === 'valor_venda' ? 'text-yellow-600 font-bold' : ''}>
                                         {renderCell(product, col.id)}
                                     </TableCell>
                                 ))}

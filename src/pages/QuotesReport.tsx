@@ -347,10 +347,10 @@ export default function QuotesReport() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {printQuotes.map((quote) => (
-                            <TableRow key={`print-${quote.id}`} className="break-inside-avoid">
+                        {printQuotes.map((quote, index) => (
+                            <TableRow key={`print-${quote.id}`} className={`break-inside-avoid ${index % 2 === 0 ? 'bg-white' : 'bg-[#FFFDE7]'}`}>
                                 {availableColumns.filter(c => c.visible).map(col => (
-                                    <TableCell key={col.id}>
+                                    <TableCell key={col.id} className={col.id === 'total' ? 'text-yellow-600 font-bold' : ''}>
                                         {col.id === 'total'
                                             ? Number(quote.valor_total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
                                             : col.id === 'data'

@@ -479,8 +479,8 @@ export default function ResaleReport() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {printProducts.map((product) => (
-                            <TableRow key={`print-${product.id}`} className="break-inside-avoid">
+                        {printProducts.map((product, index) => (
+                            <TableRow key={`print-${product.id}`} className={`break-inside-avoid ${index % 2 === 0 ? 'bg-white' : 'bg-[#FFFDE7]'}`}>
                                 {availableColumns.filter(c => c.visible).map(col => (
                                     <TableCell key={col.id}>
                                         {col.id === 'estoque' ? (
@@ -488,11 +488,13 @@ export default function ResaleReport() {
                                                 {product.estoque}
                                             </span>
                                         ) : col.id === 'preco_revenda' ? (
-                                            <span className="font-bold text-green-700">
+                                            <span className="font-bold text-yellow-600">
                                                 {(product as any).preco_revenda.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                             </span>
                                         ) : col.id.includes('valor') ? (
-                                            Number(product[col.id as keyof Product]).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                                            <span className="text-yellow-600 font-bold">
+                                                {Number(product[col.id as keyof Product]).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                            </span>
                                         ) : col.id === 'markup' ? (
                                             `${(product as any).percentual_aplicado}%`
                                         ) : col.id === 'arredondado' ? (
