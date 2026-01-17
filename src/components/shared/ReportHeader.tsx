@@ -40,13 +40,13 @@ export function ReportHeader({ title, children }: ReportHeaderProps) {
                 </p>
 
                 {/* Informações de Contato e Endereço */}
-                <div className="text-xs text-gray-700 border-t border-[#FBC02D] pt-2 mt-2 flex justify-between items-center px-4">
+                <div className="text-xs text-gray-700 flex justify-between items-center px-4 mt-1">
                     <p className="font-semibold text-left">
                         Rua Da Paz 92 - Pirajá, Juazeiro do Norte (CE)
                     </p>
                     <div className="flex gap-4 text-right font-medium">
-                        <span>(88) 98171-2559</span>
-                        <span>@icore.peças</span>
+                        <span>WhatsApp (88) 98171-2559</span>
+                        <span>Instagram @icore.peças</span>
                     </div>
                 </div>
             </div>
