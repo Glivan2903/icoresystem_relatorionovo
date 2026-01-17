@@ -24,28 +24,27 @@ export function ReportHeader({ title, children }: ReportHeaderProps) {
             </style>
 
             {/* Container Principal com borda amarela arredondada */}
-            <div className="bg-[#FFF9C4] border-2 border-[#FBC02D] rounded-xl p-4 mb-4 text-center shadow-sm">
-
-
-
-                {/* Subtítulo */}
-                <h2 className="text-lg font-bold text-gray-800 uppercase tracking-wide mb-2">
-                    Distribuidora IcoreTech
-                </h2>
-
-                {/* Slogan / Texto pequeno */}
-                <p className="text-[10px] text-gray-600 font-medium italic mb-1">
-                    8 Anos Distribuindo para região do cariri<br />
-                    (Até aqui o Senhor nos ajudou)
-                </p>
-
-                {/* Informações de Contato e Endereço */}
-                <div className="text-xs text-gray-700 flex justify-between items-center px-4 mt-0">
-                    <div className="font-semibold text-left flex flex-col">
+            <div className="bg-[#FFF9C4] border-2 border-[#FBC02D] rounded-xl p-2 mb-4 shadow-sm">
+                <div className="flex justify-between items-center px-2">
+                    {/* Lado Esquerdo: Endereço */}
+                    <div className="flex flex-col text-xs text-gray-700 font-semibold text-left w-1/3">
                         <span>Rua Da Paz 92 - Pirajá</span>
                         <span>Juazeiro do Norte (CE)</span>
                     </div>
-                    <div className="flex flex-col items-end text-right font-medium">
+
+                    {/* Centro: Título e Slogan */}
+                    <div className="text-center w-1/3">
+                        <h2 className="text-lg font-bold text-gray-800 uppercase tracking-wide leading-tight">
+                            Distribuidora IcoreTech
+                        </h2>
+                        <p className="text-[10px] text-gray-600 font-medium italic mt-1">
+                            8 Anos Distribuindo para região do cariri<br />
+                            (Até aqui o Senhor nos ajudou)
+                        </p>
+                    </div>
+
+                    {/* Lado Direito: Contatos */}
+                    <div className="flex flex-col text-xs text-gray-700 font-medium text-right w-1/3">
                         <span>WhatsApp (88) 98171-2559</span>
                         <span>Instagram @icore.peças</span>
                     </div>
