@@ -44,7 +44,7 @@ export function ReportHeader({ title, children }: ReportHeaderProps) {
                     <p className="font-semibold text-left">
                         Rua Da Paz 92 - Pirajá, Juazeiro do Norte (CE)
                     </p>
-                    <div className="flex gap-4 text-right font-medium">
+                    <div className="flex flex-col items-end text-right font-medium">
                         <span>WhatsApp (88) 98171-2559</span>
                         <span>Instagram @icore.peças</span>
                     </div>
