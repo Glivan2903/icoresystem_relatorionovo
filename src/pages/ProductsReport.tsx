@@ -295,8 +295,6 @@ export function ProductsReport() {
             styles: { fontSize: 8 },
         });
 
-        const finalY = (doc as any).lastAutoTable.finalY + 10;
-        doc.text(`Total Geral: ${totalGeral.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`, 14, finalY);
 
         doc.save('produtos_orcamento.pdf');
     };
@@ -350,7 +348,7 @@ export function ProductsReport() {
 
                 {/* Print Filters Display */}
                 {(filters.nome || (filters.grupo && filters.grupo !== 'all')) && (
-                    <div className="mb-4 p-2 border rounded bg-gray-50 text-sm">
+                    <div className="mb-4 p-2 border rounded bg-gray-100 text-sm">
                         <span className="font-bold mr-2">Filtros Aplicados:</span>
                         <div className="flex gap-4 mt-1">
                             {filters.nome && (
@@ -599,9 +597,7 @@ export function ProductsReport() {
                         ))}
                     </TableBody>
                 </Table>
-                <div className="mt-4 text-right font-bold border-t pt-2">
-                    Total Geral: {printProducts.length} itens
-                </div>
+
             </div>
 
             {/* Client Selection Modal */}

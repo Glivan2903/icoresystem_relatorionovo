@@ -5,18 +5,32 @@ import { ReportHeader } from '@/components/shared/ReportHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { quotesService, type Quote } from '@/services/api/quotes';
-import { Loader2, Printer, Settings, Download } from 'lucide-react';
+import { Loader2, Printer, Settings, Download, Search } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 
 export default function QuotesReport() {
     // State
     const [quotes, setQuotes] = useState<Quote[]>([]);
+    const [printQuotes, setPrintQuotes] = useState<Quote[]>([]);
     const [loading, setLoading] = useState(false);
+
+    // Filters
+    const [filters, setFilters] = useState({
+        clientName: '',
+        startDate: '',
+        endDate: ''
+    });
+
+    // Pagination State
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
 
     // Column Selection State
     const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
@@ -29,31 +43,25 @@ export default function QuotesReport() {
         { id: 'vendedor', label: 'Vendedor', visible: false },
     ]);
 
-    const fetchAllQuotes = async () => {
+    // Print State
+    const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
+    const [isPreparingPrint, setIsPreparingPrint] = useState(false);
+
+    const fetchQuotes = async (pageToFetch = 1) => {
         setLoading(true);
         try {
-            const toastId = toast.loading('Carregando orçamentos...');
-            // Page 1
-            const response = await quotesService.getAll(undefined, undefined, 1, 100);
-            let allData = response.data || [];
+            const response = await quotesService.getAll(
+                filters.startDate || undefined,
+                filters.endDate || undefined,
+                pageToFetch,
+                100,
+                filters.clientName || undefined
+            );
 
-            if (response.meta && response.meta.total_paginas > 1) {
-                const totalPages = response.meta.total_paginas;
-                for (let p = 2; p <= totalPages; p++) {
-                    toast.loading(`Carregando página ${p} de ${totalPages}...`, { id: toastId });
-                    await new Promise(r => setTimeout(r, 250));
-                    const nextRes = await quotesService.getAll(undefined, undefined, p, 100);
-                    if (nextRes.data) {
-                        allData = [...allData, ...nextRes.data];
-                    }
-                }
-            }
+            setQuotes(response.data || []);
+            setTotalPages(response.meta?.total_paginas || 1);
+            setPage(pageToFetch);
 
-            setQuotes(allData);
-            if (allData.length === 0) {
-                toast.info('Nenhum orçamento encontrado.');
-            }
-            toast.dismiss(toastId);
         } catch (error) {
             console.error(error);
             toast.error("Erro ao buscar orçamentos");
@@ -62,18 +70,82 @@ export default function QuotesReport() {
         }
     };
 
+    const fetchAllForPrint = async () => {
+        setIsPreparingPrint(true);
+        const toastId = toast.loading('Preparando dados para impressão...');
+        try {
+            let allData: Quote[] = [];
+
+            // Fetch page 1 to get total pages and initial data
+            const p1 = await quotesService.getAll(
+                filters.startDate || undefined,
+                filters.endDate || undefined,
+                1,
+                100,
+                filters.clientName || undefined
+            );
+
+            allData = [...(p1.data || [])];
+            const total = p1.meta?.total_paginas || 1;
+
+            if (total > 1) {
+                const promises = [];
+                for (let p = 2; p <= total; p++) {
+                    promises.push(quotesService.getAll(
+                        filters.startDate || undefined,
+                        filters.endDate || undefined,
+                        p,
+                        100,
+                        filters.clientName || undefined
+                    ));
+                }
+                const responses = await Promise.all(promises);
+                responses.forEach(r => {
+                    if (r.data) allData = [...allData, ...r.data];
+                });
+            }
+
+            // Sort alphabetically by client name
+            allData.sort((a, b) => a.nome_cliente.localeCompare(b.nome_cliente));
+
+            setPrintQuotes(allData);
+            return allData;
+
+        } catch (e) {
+            console.error(e);
+            toast.error("Erro ao preparar impressão");
+            return null;
+        } finally {
+            toast.dismiss(toastId);
+            setIsPreparingPrint(false);
+        }
+    };
+
     useEffect(() => {
-        fetchAllQuotes();
+        fetchQuotes(1);
     }, []);
 
-    const exportPDF = () => {
+    const handleSearch = () => {
+        fetchQuotes(1);
+    };
+
+    const handlePageChange = (newPage: number) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            fetchQuotes(newPage);
+        }
+    };
+
+    const exportPDF = async () => {
+        const data = await fetchAllForPrint();
+        if (!data) return;
+
         const doc = new jsPDF();
         addCompanyHeader(doc, 'Relatório de Orçamentos');
 
         autoTable(doc, {
             startY: 65,
             head: [['Data', 'Cliente', 'Situação', 'Total']],
-            body: quotes.map(q => [
+            body: data.map(q => [
                 q.data,
                 q.nome_cliente,
                 q.situacao,
@@ -89,14 +161,25 @@ export default function QuotesReport() {
         ));
     };
 
-    const handlePrint = () => {
-        setTimeout(() => {
-            window.print();
-        }, 500);
+    const handlePrintClick = () => {
+        setIsPrintDialogOpen(true);
     };
 
-    const exportExcel = () => {
-        const ws = XLSX.utils.json_to_sheet(quotes.map(q => ({
+    const confirmPrint = async () => {
+        setIsPrintDialogOpen(false);
+        const data = await fetchAllForPrint();
+        if (data) {
+            setTimeout(() => {
+                window.print();
+            }, 500);
+        }
+    };
+
+    const exportExcel = async () => {
+        const data = await fetchAllForPrint();
+        if (!data) return;
+
+        const ws = XLSX.utils.json_to_sheet(data.map(q => ({
             'Data': q.data,
             'Cliente': q.nome_cliente,
             'Situação': q.situacao,
@@ -109,29 +192,105 @@ export default function QuotesReport() {
 
     return (
         <div className="space-y-6">
-            <ReportHeader title="Relatório de Orçamentos" />
+            {/* Print Header */}
+            <ReportHeader title="Relatório de Orçamentos">
+                {(filters.clientName || filters.startDate || filters.endDate) && (
+                    <div className="mb-4 p-2 border rounded bg-gray-100 text-sm">
+                        <span className="font-bold mr-2">Filtros Aplicados:</span>
+                        <div className="flex gap-4 mt-1">
+                            {filters.clientName && <span>Cliente: <strong>{filters.clientName}</strong></span>}
+                            {filters.startDate && <span>De: <strong>{new Date(filters.startDate).toLocaleDateString()}</strong></span>}
+                            {filters.endDate && <span>Até: <strong>{new Date(filters.endDate).toLocaleDateString()}</strong></span>}
+                        </div>
+                    </div>
+                )}
+            </ReportHeader>
+
             <div className="flex items-center justify-between no-print">
                 <h1 className="text-3xl font-bold tracking-tight">Relatório de Orçamentos</h1>
                 <div className="flex gap-2">
-                    <Button onClick={exportPDF} className="gap-2">
+                    <Button onClick={exportPDF} variant="outline" className="gap-2">
                         <Download className="h-4 w-4" />
-                        Exportar PDF
+                        PDF
                     </Button>
-                    <Button onClick={exportExcel}><Download className="mr-2 h-4 w-4" /> Excel</Button>
-                    <Button onClick={() => setIsColumnModalOpen(true)}>
+                    <Button onClick={exportExcel} variant="outline" className="gap-2">
+                        <Download className="h-4 w-4" />
+                        Excel
+                    </Button>
+                    <Button onClick={() => setIsColumnModalOpen(true)} variant="outline">
                         <Settings className="h-4 w-4 mr-2" />
                         Colunas
                     </Button>
-                    <Button onClick={handlePrint} className="gap-2">
+                    <Button onClick={handlePrintClick} className="gap-2">
                         <Printer className="h-4 w-4" />
                         Imprimir
                     </Button>
                 </div>
             </div>
 
-            <Card className="print-shadow-none border-none shadow-none">
-                <CardHeader className="print-hidden px-0">
-                    <CardTitle>Lista de Orçamentos</CardTitle>
+            {/* Filters Card */}
+            <Card className="no-print">
+                <CardHeader>
+                    <CardTitle>Filtros</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-4 items-end">
+                        <div className="space-y-2">
+                            <Label>Nome do Cliente / Nº Orçamento</Label>
+                            <Input
+                                value={filters.clientName}
+                                onChange={(e) => setFilters(prev => ({ ...prev, clientName: e.target.value }))}
+                                placeholder="Buscar..."
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Data Início</Label>
+                            <Input
+                                type="date"
+                                value={filters.startDate}
+                                onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Data Fim</Label>
+                            <Input
+                                type="date"
+                                value={filters.endDate}
+                                onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
+                            />
+                        </div>
+                        <Button onClick={handleSearch} disabled={loading}>
+                            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                            Filtrar
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card className="print:hidden border-none shadow-none">
+                <CardHeader className="px-0 flex flex-row items-center justify-between">
+                    <CardTitle>Lista de Orçamentos (Página {page} de {totalPages})</CardTitle>
+                    <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePageChange(page - 1)}
+                            disabled={page <= 1 || loading}
+                        >
+                            Anterior
+                        </Button>
+                        <span className="flex items-center px-2 font-medium">
+                            {page} / {totalPages}
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePageChange(page + 1)}
+                            disabled={page >= totalPages || loading}
+                        >
+                            Próxima
+                        </Button>
+                    </div>
                 </CardHeader>
                 <CardContent className="p-0">
                     <Table>
@@ -149,7 +308,7 @@ export default function QuotesReport() {
                                 </TableRow>
                             ) : (
                                 quotes.map((quote) => (
-                                    <TableRow key={quote.id} className="break-inside-avoid">
+                                    <TableRow key={quote.id}>
                                         {availableColumns.filter(c => c.visible).map(col => (
                                             <TableCell key={col.id}>
                                                 {col.id === 'total'
@@ -172,10 +331,39 @@ export default function QuotesReport() {
                         </TableBody>
                     </Table>
                 </CardContent>
-                <div className="mt-4 text-right font-bold print:mr-4 print:block hidden">
-                    Total de itens: {quotes.length}
+                <div className="mt-4 flex justify-between items-center text-sm text-gray-500">
+                    <span>Mostrando {quotes.length} itens</span>
                 </div>
             </Card>
+
+            {/* FULL Print Table (Hidden on Screen, Visible on Print) */}
+            <div className="hidden print:block">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            {availableColumns.filter(c => c.visible).map(col => (
+                                <TableHead key={col.id} className="text-black font-bold">{col.label}</TableHead>
+                            ))}
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {printQuotes.map((quote) => (
+                            <TableRow key={`print-${quote.id}`} className="break-inside-avoid">
+                                {availableColumns.filter(c => c.visible).map(col => (
+                                    <TableCell key={col.id}>
+                                        {col.id === 'total'
+                                            ? Number(quote.valor_total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                                            : col.id === 'data'
+                                                ? new Date(quote.data).toLocaleDateString('pt-BR')
+                                                : (quote as any)[col.id]}
+                                    </TableCell>
+                                ))}
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+
+            </div>
 
             {/* Column Configuration Dialog */}
             <Dialog open={isColumnModalOpen} onOpenChange={setIsColumnModalOpen}>
@@ -197,6 +385,25 @@ export default function QuotesReport() {
                             </div>
                         ))}
                     </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Print Configuration Dialog */}
+            <Dialog open={isPrintDialogOpen} onOpenChange={setIsPrintDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Confirmar Impressão</DialogTitle>
+                        <DialogDescription>
+                            Isso irá buscar TODOS os orçamentos para gerar o relatório completo.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsPrintDialogOpen(false)}>Cancelar</Button>
+                        <Button onClick={confirmPrint} disabled={isPreparingPrint}>
+                            {isPreparingPrint ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
+                            {isPreparingPrint ? 'Preparando...' : 'Imprimir'}
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

@@ -15,16 +15,21 @@ import { ReportHeader } from '@/components/shared/ReportHeader';
 export default function ResaleReport() {
     // State
     const [products, setProducts] = useState<Product[]>([]);
+    const [printProducts, setPrintProducts] = useState<Product[]>([]);
     const [groups, setGroups] = useState<ProductGroup[]>([]);
     const [loading, setLoading] = useState(false);
+
+    // Pagination State
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
 
     // Filters
     const [filters, setFilters] = useState({
         nome: '',
         grupo: 'all',
         somenteComEstoque: false,
-        priceType: 'custo' as string, // Changed to string to support dynamic types
-        baseValue: 'venda' as 'custo' | 'venda' // New: Select Cost or Sale base
+        priceType: 'custo' as string,
+        baseValue: 'venda' as 'custo' | 'venda'
     });
 
     const [availableTypes, setAvailableTypes] = useState<string[]>([]);
@@ -45,52 +50,118 @@ export default function ResaleReport() {
     // Print config
     const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
     const [showVerificationColumn, setShowVerificationColumn] = useState(false);
+    const [isPreparingPrint, setIsPreparingPrint] = useState(false);
     const [markup, setMarkup] = useState<number>(30); // Default 30%
 
-    // Fetch All Data
-    const fetchAllProducts = useCallback(async () => {
+    // Fetch Products (Paginated)
+    const fetchProducts = useCallback(async (pageToFetch = 1) => {
         setLoading(true);
         try {
-            const toastId = toast.loading('Carregando produtos para revenda...');
+            // For filtering by name with pagination, we rely on the API.
+            // If API supports 'nome' and 'grupo_id', we pass them.
             const grupoId = filters.grupo !== 'all' ? filters.grupo : undefined;
 
-            // Page 1
-            const response = await productService.getAll(1, 100, grupoId);
-            let allData = response.data || [];
+            const response = await productService.getAll(pageToFetch, 100, grupoId, filters.nome || undefined);
 
-            if (response.meta && response.meta.total_paginas > 1) {
-                const totalPages = response.meta.total_paginas;
-                for (let p = 2; p <= totalPages; p++) {
-                    toast.loading(`Carregando página ${p} de ${totalPages}...`, { id: toastId });
-                    await new Promise(r => setTimeout(r, 250));
-                    const nextRes = await productService.getAll(p, 100, grupoId);
-                    if (nextRes.data) {
-                        allData = [...allData, ...nextRes.data];
-                    }
+            setProducts(response.data || []);
+            setTotalPages(response.meta?.total_paginas || 1);
+            setPage(pageToFetch);
+
+            if (response.data && response.data.length > 0) {
+                // Extract available types from the first product that has them
+                const firstWithValues = response.data.find(p => p.valores && p.valores.length > 0);
+                if (firstWithValues) {
+                    const types = firstWithValues.valores.map(v => v.nome_tipo);
+                    setAvailableTypes(types);
                 }
             }
 
-            setProducts(allData);
-
-            if (allData.length === 0) {
-                toast.info('Nenhum produto encontrado.');
-            }
-
-            // Extract available types from the first product that has them
-            const firstWithValues = allData.find(p => p.valores && p.valores.length > 0);
-            if (firstWithValues) {
-                const types = firstWithValues.valores.map(v => v.nome_tipo);
-                setAvailableTypes(types);
-            }
-
-            toast.dismiss(toastId);
         } catch (error) {
             console.error(error);
             toast.error('Erro ao buscar produtos.');
         } finally {
             setLoading(false);
         }
-    }, [filters.grupo]);
+    }, [filters.grupo, filters.nome]);
+
+    // Fetch All for Print
+    const fetchAllForPrint = async () => {
+        setIsPreparingPrint(true);
+        const toastId = toast.loading('Preparando dados para impressão...');
+        try {
+            let allData: Product[] = [];
+            const grupoId = filters.grupo !== 'all' ? filters.grupo : undefined;
+
+            // Page 1
+            const p1 = await productService.getAll(1, 100, grupoId, filters.nome || undefined);
+            allData = [...(p1.data || [])];
+            const total = p1.meta?.total_paginas || 1;
+
+            if (total > 1) {
+                const promises = [];
+                for (let p = 2; p <= total; p++) {
+                    promises.push(productService.getAll(p, 100, grupoId, filters.nome || undefined));
+                }
+                const responses = await Promise.all(promises);
+                responses.forEach(r => {
+                    if (r.data) allData = [...allData, ...r.data];
+                });
+            }
+            // Filter locally for stock if needed (since API might not support it)
+            if (filters.somenteComEstoque) { // Note: variable name logic inverted in UI? "Exibir sem estoque" usually implies showing <= 0.
+                // In UI: "Exibir sem estoque" (showNoStock).
+                // If the filter state is `somenteComEstoque` (onlyWithStock?), let's check the check logic.
+                // In previous code:
+                // checked={filters.somenteComEstoque} -> label "Exibir sem estoque". 
+                // Wait, if label is "Exibir sem estoque" and variable is "somenteComEstoque", that's confusing.
+                // Let's assume the previous logic: "Exibir sem estoque" ON -> Show 0 stock. OFF -> Hide 0 stock.
+                // So if !filters.somenteComEstoque (false), we should Hide 0 stock.
+                // If filters.somenteComEstoque (true), we should Show 0 stock.
+                // Re-reading previous code:
+                // if (!filters.somenteComEstoque && p.estoque <= 0) return false; -> If "Exibir sem estoque" is FALSE, we hide <= 0. Correct.
+            }
+
+            // Apply stock filter locally for print
+            if (!filters.somenteComEstoque) {
+                allData = allData.filter(p => p.estoque > 0);
+            }
+
+            // Sort alphabetically
+            allData.sort((a, b) => a.nome.localeCompare(b.nome));
+
+            // Process prices for print
+            const processed = allData.map(p => {
+                let basePrice = 0;
+                if (filters.priceType === 'custo' || filters.priceType === 'venda') {
+                    basePrice = parseFloat(filters.priceType === 'custo' ? p.valor_custo : p.valor_venda);
+                } else {
+                    const valueObj = p.valores?.find(v => v.nome_tipo === filters.priceType);
+                    if (valueObj) {
+                        basePrice = parseFloat(filters.baseValue === 'custo' ? valueObj.valor_custo : valueObj.valor_venda);
+                    } else {
+                        basePrice = parseFloat(p.valor_venda);
+                    }
+                }
+                const finalPrice = calculateResalePrice(basePrice, markup);
+                return {
+                    ...p,
+                    percentual_aplicado: markup,
+                    preco_revenda: finalPrice
+                };
+            });
+
+            setPrintProducts(processed);
+            return processed;
+        } catch (e) {
+            console.error(e);
+            toast.error("Erro ao preparar impressão");
+            return null;
+        } finally {
+            toast.dismiss(toastId);
+            setIsPreparingPrint(false);
+        }
+    };
+
 
     // Load groups
     useEffect(() => {
@@ -105,30 +176,36 @@ export default function ResaleReport() {
         loadGroups();
     }, []);
 
-    // Initial load
+    // Initial load & Filter change (Reset to page 1)
     useEffect(() => {
-        fetchAllProducts();
-    }, [fetchAllProducts]);
+        fetchProducts(1);
+    }, [filters.grupo]); // Only auto-fetch on categorical changes. Name search via button or debounce? Previous code was debounced or button? 
+    // Previous code: button "Atualizar Lista" calls fetchAllProducts.
+    // Let's keep manual trigger for text search to avoid spamming, but auto-trigger for dropdowns is nice.
+
+    const handleSearch = () => {
+        fetchProducts(1);
+    }
+
+    // Handle Page Change
+    const handlePageChange = (newPage: number) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            fetchProducts(newPage);
+        }
+    };
+
 
     const calculateResalePrice = (basePrice: number, percentage: number) => {
         if (isNaN(basePrice) || isNaN(percentage)) return 0;
         const priceWithMarkup = basePrice + (basePrice * (percentage / 100));
-        // Round up to the nearest whole number (Real)
         return Math.ceil(priceWithMarkup);
     };
 
+    // Process current page products
     const filteredAndCalculatedProducts = useMemo(() => {
+        // We only filter by stock locally for the current page
         let filtered = products;
 
-        // 1. Filter by Name/Code
-        if (filters.nome) {
-            filtered = filtered.filter(p =>
-                p.nome.toLowerCase().includes(filters.nome.toLowerCase()) ||
-                (p.codigo_interno && p.codigo_interno.toLowerCase().includes(filters.nome.toLowerCase()))
-            );
-        }
-
-        // 2. Filter by Stock
         if (!filters.somenteComEstoque) {
             filtered = filtered.filter(p => p.estoque > 0);
         }
@@ -137,15 +214,12 @@ export default function ResaleReport() {
             let basePrice = 0;
 
             if (filters.priceType === 'custo' || filters.priceType === 'venda') {
-                // Classic global selection
                 basePrice = parseFloat(filters.priceType === 'custo' ? p.valor_custo : p.valor_venda);
             } else {
-                // Dynamic Type Selection
                 const valueObj = p.valores?.find(v => v.nome_tipo === filters.priceType);
                 if (valueObj) {
                     basePrice = parseFloat(filters.baseValue === 'custo' ? valueObj.valor_custo : valueObj.valor_venda);
                 } else {
-                    // Fallback to standard if type not found for this product
                     basePrice = parseFloat(p.valor_venda);
                 }
             }
@@ -158,7 +232,7 @@ export default function ResaleReport() {
                 preco_revenda: finalPrice
             };
         });
-    }, [products, filters.nome, filters.somenteComEstoque, markup]);
+    }, [products, filters.somenteComEstoque, markup, filters.priceType, filters.baseValue]);
 
     const toggleColumn = (id: string) => {
         setAvailableColumns(prev => prev.map(col =>
@@ -170,22 +244,22 @@ export default function ResaleReport() {
         setIsPrintDialogOpen(true);
     };
 
-    const confirmPrint = () => {
+    const confirmPrint = async () => {
         setIsPrintDialogOpen(false);
-        setTimeout(() => {
-            window.print();
-        }, 500);
+        const data = await fetchAllForPrint();
+        if (data) {
+            setTimeout(() => {
+                window.print();
+            }, 500);
+        }
     };
-
-
 
     return (
         <div className="space-y-6">
             {/* Print Header */}
-            {/* Print Header */}
             <ReportHeader title="Tabela de Revenda">
                 {(filters.nome || (filters.grupo && filters.grupo !== 'all')) && (
-                    <div className="mb-6 p-3 border border-gray-200 rounded-lg bg-gray-50 text-xs flex flex-wrap justify-center gap-x-6 gap-y-2">
+                    <div className="mb-6 p-3 border border-gray-200 rounded-lg bg-gray-100 text-xs flex flex-wrap justify-center gap-x-6 gap-y-2">
                         {filters.nome && <span>Busca: <strong>{filters.nome}</strong></span>}
                         {filters.grupo && filters.grupo !== 'all' && <span>Categoria: <strong>{groups.find(g => String(g.id) === filters.grupo)?.nome || filters.grupo}</strong></span>}
                     </div>
@@ -296,17 +370,39 @@ export default function ResaleReport() {
                                 </label>
                             </div>
                         </div>
-                    </div>
-                    <div className="mt-4">
-                        <Button onClick={fetchAllProducts} disabled={loading} className="w-full md:w-auto">
+                        <Button onClick={handleSearch} disabled={loading} className="w-full md:w-auto">
                             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                            Atualizar Lista
+                            Filtrar
                         </Button>
                     </div>
                 </CardContent>
             </Card>
 
-            <Card className="print-shadow-none border-none shadow-none">
+            <Card className="print:hidden border-none shadow-none">
+                <CardHeader className="px-0 flex flex-row items-center justify-between">
+                    <CardTitle>Lista de Produtos (Página {page} de {totalPages})</CardTitle>
+                    <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePageChange(page - 1)}
+                            disabled={page <= 1 || loading}
+                        >
+                            Anterior
+                        </Button>
+                        <span className="flex items-center px-2 font-medium">
+                            {page} / {totalPages}
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePageChange(page + 1)}
+                            disabled={page >= totalPages || loading}
+                        >
+                            Próxima
+                        </Button>
+                    </div>
+                </CardHeader>
                 <CardContent className="p-0">
                     <Table>
                         <TableHeader>
@@ -316,7 +412,6 @@ export default function ResaleReport() {
                                         {col.label}
                                     </TableHead>
                                 ))}
-                                {showVerificationColumn && <TableHead className="text-center print:table-cell hidden font-bold">Conf.</TableHead>}
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -328,7 +423,7 @@ export default function ResaleReport() {
                                 </TableRow>
                             ) : (
                                 filteredAndCalculatedProducts.map((product) => (
-                                    <TableRow key={product.id} className="break-inside-avoid">
+                                    <TableRow key={product.id}>
                                         {availableColumns.filter(c => c.visible).map(col => (
                                             <TableCell key={col.id}>
                                                 {col.id === 'estoque' ? (
@@ -346,18 +441,12 @@ export default function ResaleReport() {
                                                 ) : col.id === 'arredondado' ? (
                                                     <span className="text-xs text-muted-foreground">(Arred.)</span>
                                                 ) : col.id === 'valores' ? (
-                                                    // Hide complex object if someone enables it, or map to count
                                                     <span className="text-xs">{product.valores?.length || 0} tipos</span>
                                                 ) : (
                                                     (product as any)[col.id]
                                                 )}
                                             </TableCell>
                                         ))}
-                                        {showVerificationColumn && (
-                                            <TableCell className="text-center print:table-cell hidden border-l border-gray-300">
-                                                <div className="inline-block w-4 h-4 border border-black rounded-sm"></div>
-                                            </TableCell>
-                                        )}
                                     </TableRow>
                                 ))
                             )}
@@ -371,10 +460,60 @@ export default function ResaleReport() {
                         </TableBody>
                     </Table>
                 </CardContent>
-                <div className="mt-4 text-right font-bold print:mr-4 print:block hidden">
-                    Total de itens: {filteredAndCalculatedProducts.length}
+                <div className="mt-4 flex justify-between items-center text-sm text-gray-500">
+                    <span>Mostrando {filteredAndCalculatedProducts.length} itens</span>
                 </div>
             </Card>
+
+            {/* FULL Print Table (Hidden on Screen, Visible on Print) */}
+            <div className="hidden print:block">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            {availableColumns.filter(c => c.visible).map(col => (
+                                <TableHead key={col.id} className="text-black font-bold">
+                                    {col.label}
+                                </TableHead>
+                            ))}
+                            {showVerificationColumn && <TableHead className="text-center font-bold">Conf.</TableHead>}
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {printProducts.map((product) => (
+                            <TableRow key={`print-${product.id}`} className="break-inside-avoid">
+                                {availableColumns.filter(c => c.visible).map(col => (
+                                    <TableCell key={col.id}>
+                                        {col.id === 'estoque' ? (
+                                            <span className={product.estoque <= 0 ? 'text-red-500 font-bold' : ''}>
+                                                {product.estoque}
+                                            </span>
+                                        ) : col.id === 'preco_revenda' ? (
+                                            <span className="font-bold text-green-700">
+                                                {(product as any).preco_revenda.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                            </span>
+                                        ) : col.id.includes('valor') ? (
+                                            Number(product[col.id as keyof Product]).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                                        ) : col.id === 'markup' ? (
+                                            `${(product as any).percentual_aplicado}%`
+                                        ) : col.id === 'arredondado' ? (
+                                            <span className="text-xs text-muted-foreground">(Arred.)</span>
+                                        ) : col.id === 'valores' ? (
+                                            <span className="text-xs">{product.valores?.length || 0} tipos</span>
+                                        ) : (
+                                            (product as any)[col.id]
+                                        )}
+                                    </TableCell>
+                                ))}
+                                {showVerificationColumn && (
+                                    <TableCell className="text-center border-l border-gray-300">
+                                        <div className="inline-block w-4 h-4 border border-black rounded-sm"></div>
+                                    </TableCell>
+                                )}
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
 
             <Dialog open={isColumnModalOpen} onOpenChange={setIsColumnModalOpen}>
                 <DialogContent>
@@ -413,7 +552,10 @@ export default function ResaleReport() {
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsPrintDialogOpen(false)}>Cancelar</Button>
-                        <Button onClick={confirmPrint}>Imprimir</Button>
+                        <Button onClick={confirmPrint} disabled={isPreparingPrint}>
+                            {isPreparingPrint ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
+                            {isPreparingPrint ? 'Preparando...' : 'Imprimir'}
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

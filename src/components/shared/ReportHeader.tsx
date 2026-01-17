@@ -27,7 +27,7 @@ export function ReportHeader({ title, children }: ReportHeaderProps) {
             <div className="bg-[#FFF9C4] border-2 border-[#FBC02D] rounded-xl p-4 mb-4 text-center shadow-sm">
 
                 {/* Nome da Empresa */}
-                <h1 className="text-3xl font-extrabold text-[#E81D88] uppercase tracking-wider mb-1">
+                <h1 className="text-3xl font-extrabold text-slate-900 uppercase tracking-wider mb-1">
                     iCore Tech
                 </h1>
 
@@ -56,7 +56,7 @@ export function ReportHeader({ title, children }: ReportHeaderProps) {
 
             {/* Título do Relatório Específico */}
             <div className="text-center space-y-2 mb-6">
-                <h3 className="text-xl font-bold uppercase tracking-wide inline-block px-8 pb-1 border-b-2 border-[#E81D88]">
+                <h3 className="text-xl font-bold uppercase tracking-wide inline-block px-8 pb-1 border-b-2 border-slate-900">
                     {title}
                 </h3>
             </div>
