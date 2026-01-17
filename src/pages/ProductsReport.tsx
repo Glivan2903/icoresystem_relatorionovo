@@ -247,7 +247,7 @@ export function ProductsReport() {
         const clientName = selectedClient ? selectedClient.nome : 'Cliente Não Informado';
 
         const doc = new jsPDF();
-        addCompanyHeader(doc, 'Relatório de Produtos / Orçamento');
+        addCompanyHeader(doc, 'Tabela de Preço');
 
         doc.setFontSize(12);
         doc.text(`Cliente: ${clientName}`, 14, 55);
@@ -340,7 +340,7 @@ export function ProductsReport() {
         <div className="space-y-6">
             {/* Print Header - Visible only when printing */}
             {/* Print Header - Visible only when printing */}
-            <ReportHeader title="Relatório de Produtos / Orçamento">
+            <ReportHeader title="Tabela de Preço">
                 <div className="mt-4 flex justify-between mb-4">
                     <p><strong>Cliente:</strong> {selectedClient ? selectedClient.nome : 'Cliente Não Informado'}</p>
                     <p><strong>Data:</strong> {new Date().toLocaleDateString()}</p>

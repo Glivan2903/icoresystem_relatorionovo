@@ -26,10 +26,7 @@ export function ReportHeader({ title, children }: ReportHeaderProps) {
             {/* Container Principal com borda amarela arredondada */}
             <div className="bg-[#FFF9C4] border-2 border-[#FBC02D] rounded-xl p-4 mb-4 text-center shadow-sm">
 
-                {/* Nome da Empresa */}
-                <h1 className="text-3xl font-extrabold text-slate-900 uppercase tracking-wider mb-1">
-                    iCore Tech
-                </h1>
+
 
                 {/* Subtítulo */}
                 <h2 className="text-lg font-bold text-gray-800 uppercase tracking-wide mb-2">
@@ -43,13 +40,13 @@ export function ReportHeader({ title, children }: ReportHeaderProps) {
                 </p>
 
                 {/* Informações de Contato e Endereço */}
-                <div className="text-xs text-gray-700 space-y-1 border-t border-[#FBC02D] pt-2 mt-2">
-                    <p className="font-semibold">
+                <div className="text-xs text-gray-700 border-t border-[#FBC02D] pt-2 mt-2 flex justify-between items-center px-4">
+                    <p className="font-semibold text-left">
                         Rua Da Paz 92 - Pirajá, Juazeiro do Norte (CE)
                     </p>
-                    <div className="flex justify-center gap-4 flex-wrap">
-                        <span><strong>Tel:</strong> (88) 98171-2559</span>
-                        <span><strong>Instagram:</strong> icore.peças</span>
+                    <div className="flex gap-4 text-right font-medium">
+                        <span>(88) 98171-2559</span>
+                        <span>@icore.peças</span>
                     </div>
                 </div>
             </div>
