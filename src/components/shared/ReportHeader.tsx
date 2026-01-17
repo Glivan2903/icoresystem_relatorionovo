@@ -34,13 +34,13 @@ export function ReportHeader({ title, children }: ReportHeaderProps) {
                 </h2>
 
                 {/* Slogan / Texto pequeno */}
-                <p className="text-[10px] text-gray-600 font-medium italic mb-3">
+                <p className="text-[10px] text-gray-600 font-medium italic mb-1">
                     8 Anos Distribuindo para região do cariri<br />
                     (Até aqui o Senhor nos ajudou)
                 </p>
 
                 {/* Informações de Contato e Endereço */}
-                <div className="text-xs text-gray-700 flex justify-between items-center px-4 mt-1">
+                <div className="text-xs text-gray-700 flex justify-between items-center px-4 mt-0">
                     <div className="font-semibold text-left flex flex-col">
                         <span>Rua Da Paz 92 - Pirajá</span>
                         <span>Juazeiro do Norte (CE)</span>
