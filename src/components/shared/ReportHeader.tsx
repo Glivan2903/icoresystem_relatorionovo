@@ -45,7 +45,7 @@ export function ReportHeader({ title, children }: ReportHeaderProps) {
 
                     {/* Lado Direito: Contatos */}
                     <div className="flex flex-col text-xs text-gray-700 font-medium text-right w-1/3">
-                        <span>WhatsApp (88) 98171-2559</span>
+                        <span>WhatsApp (88) 98863-8990</span>
                         <span>Instagram @icore.peças</span>
                     </div>
                 </div>

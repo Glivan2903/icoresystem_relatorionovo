@@ -245,31 +245,46 @@ export function ProductsReport() {
         if (!data) return;
 
         const clientName = selectedClient ? selectedClient.nome : 'Cliente Não Informado';
+        const todayDate = new Date().toLocaleDateString();
 
         const doc = new jsPDF();
         addCompanyHeader(doc, 'Tabela de Preço');
 
-        doc.setFontSize(12);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+
+        // Client and Date
         doc.text(`Cliente: ${clientName}`, 14, 55);
-        doc.text(`Data: ${new Date().toLocaleDateString()}`, 14, 62);
+        doc.text(`Data: ${todayDate}`, 14, 60);
+
+        // Filters info (if applied)
+        // Filters info (if applied)
+        let startY = 65;
+        if (filters.nome || (filters.grupo && filters.grupo !== 'all')) {
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(50, 50, 50);
+
+            let filterText = 'Filtros: ';
+            if (filters.nome) filterText += `Nome/Código: ${filters.nome}   `;
+            if (filters.grupo && filters.grupo !== 'all') {
+                const groupName = groups.find(g => String(g.id) === filters.grupo)?.nome || filters.grupo;
+                filterText += `Categoria: ${groupName}`;
+            }
+
+            doc.text(filterText, 14, 65);
+            startY = 70;
+        }
 
         const visibleCols = availableColumns.filter(c => c.visible);
         const head = [visibleCols.map(c => c.label)];
 
-        let totalGeral = 0;
-
         const body = data.map(product => {
             const row: any[] = [];
-
-            // Use processed price instead of raw valor_venda
             const basePrice = getProcessedPrice(product);
-
-            // Calculate fields
             const finalUnitPrice = Math.ceil(basePrice + (basePrice * percentage / 100));
             const subTotal = finalUnitPrice * quantity;
             const percentValue = finalUnitPrice - basePrice;
-
-            totalGeral += subTotal;
 
             visibleCols.forEach(col => {
                 if (col.id === 'codigo_interno') row.push(product.codigo_interno || '-');
@@ -277,7 +292,7 @@ export function ProductsReport() {
                 else if (col.id === 'estoque') row.push(product.estoque);
                 else if (col.id === 'nome_grupo') row.push(product.nome_grupo || '-');
                 else if (col.id === 'valor_custo') row.push(Number(product.valor_custo).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
-                else if (col.id === 'valor_venda') row.push(basePrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })); // Show the USED base price
+                else if (col.id === 'valor_venda') row.push(basePrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
                 else if (col.id === 'quantidade') row.push(quantity);
                 else if (col.id === 'percentage') row.push(`${percentage}%`);
                 else if (col.id === 'valor_porcentagem') row.push(percentValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
@@ -289,12 +304,54 @@ export function ProductsReport() {
         });
 
         autoTable(doc, {
-            startY: 70,
+            startY: startY,
             head: head,
             body: body,
-            styles: { fontSize: 8 },
-        });
+            theme: 'plain',
+            styles: {
+                fontSize: 9,
+                cellPadding: 3,
+                textColor: [0, 0, 0],
+                lineColor: [230, 230, 230],
+                lineWidth: 0,
+            },
+            headStyles: {
+                fillColor: [255, 255, 255],
+                textColor: [0, 0, 0],
+                fontStyle: 'bold',
+                lineWidth: 0,
+            },
+            bodyStyles: {
+                lineWidth: 0,
+                minCellHeight: 8
+            },
+            columnStyles: {
+            },
+            didParseCell: function (data) {
+                if (data.section === 'body') {
+                    const colIndex = data.column.index;
+                    const colId = visibleCols[colIndex].id;
 
+                    if (['valor_venda', 'unitPrice', 'total', 'valor_porcentagem'].includes(colId)) {
+                        data.cell.styles.textColor = [217, 119, 6]; // Yellow
+                        data.cell.styles.halign = 'right';
+                        data.cell.styles.fontStyle = 'bold';
+                    }
+
+                    if (data.row.index % 2 !== 0) {
+                        data.cell.styles.fillColor = [255, 253, 231]; // #FFFDE7
+                    }
+                }
+
+                if (data.section === 'head') {
+                    const colIndex = data.column.index;
+                    const colId = visibleCols[colIndex].id;
+                    if (['valor_venda', 'unitPrice', 'total', 'valor_porcentagem'].includes(colId)) {
+                        data.cell.styles.halign = 'right';
+                    }
+                }
+            }
+        });
 
         doc.save('produtos_orcamento.pdf');
     };

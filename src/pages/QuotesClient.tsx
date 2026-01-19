@@ -189,7 +189,7 @@ export default function QuotesClient() {
         name: "Icore System",
         cnpj: "58.499.151/0001-16",
         email: "antoniosilva286mv1@gmail.com",
-        phone: "(88) 98171-2559",
+        phone: "(88) 98863-8990",
         address1: "RUA AFONSO RIBEIRO, 436",
         address2: "CENTRO, 733 - Missão Velha (CE)"
     };
